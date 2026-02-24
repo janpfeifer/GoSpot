@@ -1,0 +1,27 @@
+# IDEs and AI coders
+.idea
+.cursor
+.crush
+.Trash*
+.DS_Store
+gomlx.code-workspace
+.vscode/launch.json
+.vscode/settings.json
+codebook.toml
+
+# Python tests
+venv
+
+# Go files for development / debugging.
+go.work
+go.work.sum
+*.test
+
+# Agent context files (root only)
+/GEMINI.md
+/CLAUDE.md
+/conductor
+
+# Compiled artifacts
+web/app.wasm
+bin/
