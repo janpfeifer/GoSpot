@@ -134,11 +134,16 @@ func (l *Login) Render() app.UI {
 	return app.Main().Class("container").Body(
 		app.Article().Body(
 			app.Header().Body(
-				app.H2().Text("GoSpot Login"),
+				app.Div().Style("text-align", "center").Body(
+					app.Img().
+						Src("/web/images/banner.png").
+						Style("max-width", "100%").
+						Style("max-height", "20vh").
+						Style("border-radius", "12px"),
+				),
 			),
 			errorUI,
 			app.Form().Method("POST").OnSubmit(l.onLogin).Body(
-				app.Label().For("name").Text("Player Name"),
 				app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "1rem").Style("margin-bottom", "1rem").Body(
 					app.Img().
 						Src(selectedSymbolImg).
@@ -150,7 +155,7 @@ func (l *Login) Render() app.UI {
 						Type("text").
 						ID("name").
 						Name("name").
-						Placeholder("Enter your name").
+						Placeholder("Enter your player name").
 						Required(true).
 						Value(l.Name).
 						AutoComplete(false).
