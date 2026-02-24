@@ -38,10 +38,20 @@ This repository produces TWO binaries. You must strictly respect the separation 
 
 ## Game Flow
 
+The user either goes to the home page of the game, or they are given a "table" link. In either case, 
+they are first directed to the login page (if they are not logged-in yet).
+
+If the login succeeded, they are redirected to the table they original intended to go, or if they were in the
+home page a form to name and create a new table is offered.
+
 ### Login
 
 * User choose their own name, and then pick one of the symbols to represent them.
+* User name and symbol is saved in a cookie. Their login symbol will be displayed as a small icon in the top, 
+  and there will be a menu with an option to logout or login with a different name.
 * If the user hasn't yet selected a "table", they select a new table name they are going to create.
+* The login should have a rotating animation of all the symbols, running at the bottom 3/4 of the screen,
+  preferably forming a small arc (like a smile)
 
 ### "Table"
 
@@ -72,4 +82,3 @@ This repository produces TWO binaries. You must strictly respect the separation 
 * The top right and bottom left hold the symbol and name of each of the other players, with
   a count of the number of cards.
 * A red aura is added to a player that is in penalty.
-
