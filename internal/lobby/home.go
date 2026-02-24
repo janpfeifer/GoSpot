@@ -12,6 +12,11 @@ import (
 type Home struct {
 	app.Compo
 	TableName string
+	login     *Login
+}
+
+func (h *Home) OnMount(ctx app.Context) {
+	h.login = &Login{}
 }
 
 func (h *Home) OnNav(ctx app.Context) {
@@ -39,7 +44,10 @@ func (h *Home) onCreateTable(ctx app.Context, e app.Event) {
 func (h *Home) Render() app.UI {
 	if State.Player == nil || State.Player.ID == "" {
 		// Render login instead
-		return &Login{}
+		if h.login == nil {
+			h.login = &Login{}
+		}
+		return h.login
 	}
 
 	return app.Main().Class("container").Body(

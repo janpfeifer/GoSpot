@@ -23,7 +23,7 @@ This repository produces TWO binaries. You must strictly respect the separation 
 
 ### Symbol Images
 
-* `web/images/symbol_%02d.png`: there are 63 of them, but only the first 57 are used. 
+* `web/images/symbol_%02d.png`: there are 63 of them, but only the first 57 are used (`symbol_00.png` to `symbol_56.png`). 
 
 ## Crucial Architectural Rules
 1.  **Legal / Naming:** Do NOT use the words "Dobble" or "Spot It" anywhere in the source code, variables, or UI. Use "GoSpot", "Deck", "Card", and "Symbol".

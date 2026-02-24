@@ -44,10 +44,9 @@ func TestServerRun(t *testing.T) {
 
 	body := string(bodyBytes)
 
-	// The go-app framework generates standard HTML. Let's check if our title or something is in there
-	// The word GoSpot should definitely be there.
-	if !strings.Contains(body, "GoSpot") {
-		t.Errorf("Expected body to contain 'GoSpot', got body: %s", body)
+	// The go-app framework generates standard HTML. Let's check if our banner is in there
+	if !strings.Contains(body, "banner.png") {
+		t.Errorf("Expected body to contain 'banner.png', got body: %s", body)
 	}
 
 	// Cancel the context to stop the server

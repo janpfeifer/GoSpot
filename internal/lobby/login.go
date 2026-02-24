@@ -19,9 +19,16 @@ type Login struct {
 	SymbolID     int
 	ReturnURL    string
 	ErrorMessage string
+	ShowSymbols  bool
 }
 
 func (l *Login) OnMount(ctx app.Context) {
+	// Default random symbol only if not already set
+	if l.SymbolID == 0 {
+		rand.Seed(time.Now().UnixNano())
+		l.SymbolID = rand.Intn(57) // 0 to 56
+	}
+
 	// Parse URL to find the return path, if any
 	u, err := url.Parse(app.Window().URL().String())
 	if err == nil {
@@ -41,10 +48,6 @@ func (l *Login) OnMount(ctx app.Context) {
 			return
 		}
 	}
-
-	// Default random symbol
-	rand.Seed(time.Now().UnixNano())
-	l.SymbolID = rand.Intn(57) + 1 // 1 to 57
 }
 
 func (l *Login) redirect(ctx app.Context) {
@@ -59,8 +62,15 @@ func (l *Login) onNameChange(ctx app.Context, e app.Event) {
 	l.Name = ctx.JSSrc().Get("value").String()
 }
 
+func (l *Login) toggleSymbols(ctx app.Context, e app.Event) {
+	l.ShowSymbols = !l.ShowSymbols
+	klog.Infof("toggleSymbols: ShowSymbols is now %v", l.ShowSymbols)
+	ctx.Update()
+}
+
 func (l *Login) selectSymbol(ctx app.Context, e app.Event) {
 	// Get the value from the radio input or data-id from the image
+	klog.Infof("selectSymbol: %v", ctx.JSSrc())
 	idStr := ctx.JSSrc().Get("value").String()
 	if idStr == "" || idStr == "undefined" {
 		idStr = ctx.JSSrc().Get("dataset").Get("id").String()
@@ -69,6 +79,8 @@ func (l *Login) selectSymbol(ctx app.Context, e app.Event) {
 	var id int
 	if _, err := fmt.Sscanf(idStr, "%d", &id); err == nil {
 		l.SymbolID = id
+		l.ShowSymbols = false
+		ctx.Update()
 	}
 }
 
@@ -85,7 +97,7 @@ func (l *Login) onLogin(ctx app.Context, e app.Event) {
 		Symbol: l.SymbolID,
 	}
 
-	klog.V(1).Infof("Login registered for player: %s (ID: %s, Symbol: %d)", player.Name, player.ID, player.Symbol)
+	klog.Infof("Login registered for player: %s (ID: %s, Symbol: %d)", player.Name, player.ID, player.Symbol)
 
 	// Save to state
 	State.Player = &player
@@ -99,7 +111,7 @@ func (l *Login) onLogin(ctx app.Context, e app.Event) {
 
 func (l *Login) Render() app.UI {
 	var symbols []app.UI
-	for i := 1; i <= 57; i++ {
+	for i := range 56 {
 		imgSrc := fmt.Sprintf("/web/images/symbol_%02d.png", i)
 		style := "width: 48px; height: 48px; cursor: pointer; border-radius: 50%; padding: 4px;"
 		if l.SymbolID == i {
@@ -131,6 +143,17 @@ func (l *Login) Render() app.UI {
 
 	selectedSymbolImg := fmt.Sprintf("/web/images/symbol_%02d.png", l.SymbolID)
 
+	var symbolSelection app.UI
+	klog.Infof("Render: ShowSymbols=%v", l.ShowSymbols)
+	if l.ShowSymbols {
+		symbolSelection = app.Div().Body(
+			app.Label().Text("Choose your symbol"),
+			app.Div().Style("display", "flex").Style("flex-wrap", "wrap").Style("gap", "8px").Style("margin-bottom", "1rem").Body(
+				symbols...,
+			),
+		)
+	}
+
 	return app.Main().Class("container").Body(
 		app.Article().Body(
 			app.Header().Body(
@@ -150,7 +173,9 @@ func (l *Login) Render() app.UI {
 						Style("width", "64px").
 						Style("height", "64px").
 						Style("border-radius", "50%").
-						Style("border", "2px solid var(--primary)"),
+						Style("border", "2px solid var(--primary)").
+						Style("cursor", "pointer").
+						OnClick(l.toggleSymbols),
 					app.Input().
 						Type("text").
 						ID("name").
@@ -162,10 +187,7 @@ func (l *Login) Render() app.UI {
 						OnInput(l.onNameChange).
 						Style("margin-bottom", "0"), // Remove pico.css default bottom margin
 				),
-				app.Label().Text("Choose your symbol"),
-				app.Div().Style("display", "flex").Style("flex-wrap", "wrap").Style("gap", "8px").Style("margin-bottom", "1rem").Body(
-					symbols...,
-				),
+				symbolSelection,
 				app.Button().Type("submit").Text("Play"),
 			),
 		),
