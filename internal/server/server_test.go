@@ -18,15 +18,16 @@ func TestServerRun(t *testing.T) {
 
 	// Start the server in a goroutine
 	errCh := make(chan error, 1)
+	started := make(chan string, 1)
 	go func() {
-		errCh <- Run(ctx, addr)
+		errCh <- Run(ctx, addr, started)
 	}()
 
-	// Wait a moment for the server to start
-	time.Sleep(500 * time.Millisecond)
+	// Wait for the server to start and get the actual address
+	actualAddr := <-started
 
 	// Make an HTTP request to the login page (root route maps to login for unauthenticated)
-	resp, err := http.Get("http://" + addr + "/")
+	resp, err := http.Get("http://" + actualAddr + "/")
 	if err != nil {
 		t.Fatalf("Failed to connect to server: %v", err)
 	}
@@ -61,4 +62,35 @@ func TestServerRun(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Errorf("Server took too long to shut down")
 	}
+}
+
+func TestServerRunAutoPort(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Empty address should trigger auto-port
+	addr := ""
+
+	errCh := make(chan error, 1)
+	started := make(chan string, 1)
+	go func() {
+		errCh <- Run(ctx, addr, started)
+	}()
+
+	actualAddr := <-started
+	if actualAddr == "" {
+		t.Fatal("Expected actualAddr to be non-empty")
+	}
+	if !strings.HasPrefix(actualAddr, "127.0.0.1:") {
+		t.Errorf("Expected address to be on 127.0.0.1, got %v", actualAddr)
+	}
+
+	resp, err := http.Get("http://" + actualAddr + "/")
+	if err != nil {
+		t.Fatalf("Failed to connect to server: %v", err)
+	}
+	resp.Body.Close()
+
+	cancel()
+	<-errCh
 }

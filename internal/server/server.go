@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -11,7 +12,22 @@ import (
 )
 
 // Run starts the server and blocks until the context is canceled.
-func Run(ctx context.Context, addr string) error {
+// If addr is empty, it listens on an automatic port on the localhost interface.
+// It sends the actual address it's listening on to the started channel if it's not nil.
+func Run(ctx context.Context, addr string, started chan<- string) error {
+	if addr == "" {
+		addr = "127.0.0.1:0"
+	}
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	actualAddr := ln.Addr().String()
+	if started != nil {
+		started <- actualAddr
+	}
+
 	// Initialize global lobby state for server-side prerendering without panic
 	lobby.InitState()
 
@@ -44,13 +60,12 @@ func Run(ctx context.Context, addr string) error {
 	mux.Handle("/", h)
 
 	srv := &http.Server{
-		Addr:    addr,
 		Handler: mux,
 	}
 
 	go func() {
-		log.Printf("Server started on %s", addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Printf("Server started on %s", actualAddr)
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Printf("Server error: %v", err)
 		}
 	}()
