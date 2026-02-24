@@ -1,5 +1,10 @@
 package game
 
+import (
+	"math/rand"
+	"time"
+)
+
 // Deck represents a full set of GoSpot cards.
 // Each card is a slice of integers representing symbol IDs.
 type Deck [][]int
@@ -53,4 +58,18 @@ func GenerateDeck(order int) Deck {
 	}
 
 	return deck
+}
+
+// GenerateStandardDeck creates a deck with order = 7.
+func GenerateStandardDeck() Deck {
+	return GenerateDeck(7)
+}
+
+// Shuffle shuffles the deck using Fisher-Yates algorithm.
+func (d Deck) Shuffle() {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := len(d) - 1; i > 0; i-- {
+		j := r.Intn(i + 1)
+		d[i], d[j] = d[j], d[i]
+	}
 }
