@@ -51,6 +51,17 @@ func Run(ctx context.Context, addr string, started chan<- string) error {
 
 	mux := http.NewServeMux()
 
+	// Register logout handler
+	mux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{
+			Name:   "gospot_player",
+			Value:  "",
+			Path:   "/",
+			MaxAge: -1,
+		})
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	})
+
 	// Register WebSocket endpoint
 	mux.HandleFunc("/ws", serverState.HandleWS)
 

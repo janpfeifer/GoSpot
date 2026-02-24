@@ -3,7 +3,6 @@ package lobby
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/url"
 	"time"
 
@@ -15,20 +14,12 @@ import (
 // Login is the component for user login
 type Login struct {
 	app.Compo
-	Name         string
-	SymbolID     int
 	ReturnURL    string
 	ErrorMessage string
-	ShowSymbols  bool
 }
 
 func (l *Login) OnMount(ctx app.Context) {
-	// Default random symbol only if not already set
-	if l.SymbolID == 0 {
-		rand.Seed(time.Now().UnixNano())
-		l.SymbolID = rand.Intn(57) // 0 to 56
-	}
-
+	klog.V(1).Infof("Login: OnMount called")
 	// Parse URL to find the return path, if any
 	u, err := url.Parse(app.Window().URL().String())
 	if err == nil {
@@ -59,18 +50,17 @@ func (l *Login) redirect(ctx app.Context) {
 }
 
 func (l *Login) onNameChange(ctx app.Context, e app.Event) {
-	l.Name = ctx.JSSrc().Get("value").String()
+	State.PendingName = ctx.JSSrc().Get("value").String()
 }
 
 func (l *Login) toggleSymbols(ctx app.Context, e app.Event) {
-	l.ShowSymbols = !l.ShowSymbols
-	klog.Infof("toggleSymbols: ShowSymbols is now %v", l.ShowSymbols)
+	State.ShowSymbols = !State.ShowSymbols
+	klog.V(1).Infof("toggleSymbols: ShowSymbols is now %v", State.ShowSymbols)
 	ctx.Update()
 }
 
 func (l *Login) selectSymbol(ctx app.Context, e app.Event) {
 	// Get the value from the radio input or data-id from the image
-	klog.Infof("selectSymbol: %v", ctx.JSSrc())
 	idStr := ctx.JSSrc().Get("value").String()
 	if idStr == "" || idStr == "undefined" {
 		idStr = ctx.JSSrc().Get("dataset").Get("id").String()
@@ -78,27 +68,26 @@ func (l *Login) selectSymbol(ctx app.Context, e app.Event) {
 
 	var id int
 	if _, err := fmt.Sscanf(idStr, "%d", &id); err == nil {
-		l.SymbolID = id
-		l.ShowSymbols = false
+		State.SymbolID = id
+		State.ShowSymbols = false
 		ctx.Update()
 	}
 }
 
 func (l *Login) onLogin(ctx app.Context, e app.Event) {
-	klog.Infof("onLogin: name=%s, symbol=%d, %v", l.Name, l.SymbolID, ctx.JSSrc())
 	e.PreventDefault()
-	if l.Name == "" {
+	if State.PendingName == "" {
 		l.ErrorMessage = "Name cannot be empty."
 		return
 	}
 
 	player := game.Player{
 		ID:     fmt.Sprintf("%d", time.Now().UnixNano()),
-		Name:   l.Name,
-		Symbol: l.SymbolID,
+		Name:   State.PendingName,
+		Symbol: State.SymbolID,
 	}
 
-	klog.Infof("Login registered for player: %s (ID: %s, Symbol: %d)", player.Name, player.ID, player.Symbol)
+	klog.V(1).Infof("Login registered for player: %s (ID: %s, Symbol: %d)", player.Name, player.ID, player.Symbol)
 
 	// Save to state
 	State.Player = &player
@@ -112,10 +101,10 @@ func (l *Login) onLogin(ctx app.Context, e app.Event) {
 
 func (l *Login) Render() app.UI {
 	var symbols []app.UI
-	for i := range 56 {
+	for i := 1; i <= 57; i++ {
 		imgSrc := fmt.Sprintf("/web/images/symbol_%02d.png", i)
 		style := "width: 48px; height: 48px; cursor: pointer; border-radius: 50%; padding: 4px;"
-		if l.SymbolID == i {
+		if State.SymbolID == i {
 			style += " background-color: var(--primary); border: 2px solid var(--primary-hover);"
 		} else {
 			style += " border: 2px solid transparent;"
@@ -126,7 +115,7 @@ func (l *Login) Render() app.UI {
 				Type("radio").
 				Name("symbol").
 				Value(fmt.Sprintf("%d", i)).
-				Checked(l.SymbolID == i).
+				Checked(State.SymbolID == i).
 				Style("display", "none").
 				OnChange(l.selectSymbol),
 			app.Img().
@@ -142,13 +131,14 @@ func (l *Login) Render() app.UI {
 		errorUI = app.Div().Style("color", "red").Style("margin-bottom", "1rem").Text(l.ErrorMessage)
 	}
 
-	selectedSymbolImg := fmt.Sprintf("/web/images/symbol_%02d.png", l.SymbolID)
+	selectedSymbolImg := fmt.Sprintf("/web/images/symbol_%02d.png", State.SymbolID)
 
 	var symbolSelection app.UI
-	klog.Infof("Render: ShowSymbols=%v", l.ShowSymbols)
-	if l.ShowSymbols {
+	klog.V(1).Infof("Render: ShowSymbols=%v", State.ShowSymbols)
+	if State.ShowSymbols {
 		symbolSelection = app.Div().Body(
-			app.Label().Text("Choose your symbol"),
+			app.Label().Text("Choose your player symbol:").
+				Attr("data-tooltip", "You discard extra cards if you match your own symbol during the game"),
 			app.Div().Style("display", "flex").Style("flex-wrap", "wrap").Style("gap", "8px").Style("margin-bottom", "1rem").Body(
 				symbols...,
 			),
@@ -167,7 +157,7 @@ func (l *Login) Render() app.UI {
 				),
 			),
 			errorUI,
-			app.Form().Method("POST").OnSubmit(l.onLogin).Body(
+			app.Form().OnSubmit(l.onLogin).Body(
 				app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "1rem").Style("margin-bottom", "1rem").Body(
 					app.Img().
 						Src(selectedSymbolImg).
@@ -183,7 +173,7 @@ func (l *Login) Render() app.UI {
 						Name("name").
 						Placeholder("Enter your player name").
 						Required(true).
-						Value(l.Name).
+						Value(State.PendingName).
 						AutoComplete(false).
 						OnInput(l.onNameChange).
 						Style("margin-bottom", "0"), // Remove pico.css default bottom margin

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
+	"k8s.io/klog/v2"
 )
 
 // Home is the landing page component
@@ -16,10 +17,12 @@ type Home struct {
 }
 
 func (h *Home) OnMount(ctx app.Context) {
+	klog.V(1).Infof("Home: OnMount called")
 	h.login = &Login{}
 }
 
 func (h *Home) OnNav(ctx app.Context) {
+	klog.V(1).Infof("Home: OnNav called, Path=%s", app.Window().URL().Path)
 	if State.Player == nil || State.Player.ID == "" {
 		// Not logged in, redirect to login via Login component logic
 		// We'll actually render the login page in the Home route if not logged in
@@ -39,6 +42,14 @@ func (h *Home) onCreateTable(ctx app.Context, e app.Event) {
 	}
 
 	app.Window().Get("location").Set("href", "/table/"+h.TableName)
+}
+
+func (h *Home) onLogout(ctx app.Context, e app.Event) {
+	e.PreventDefault()
+	State.Player = nil
+	// Clear cookie in JS as well
+	app.Window().Get("document").Set("cookie", "gospot_player=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;")
+	ctx.Navigate("/")
 }
 
 func (h *Home) Render() app.UI {
@@ -62,7 +73,7 @@ func (h *Home) Render() app.UI {
 						Src(fmt.Sprintf("/web/images/symbol_%02d.png", State.Player.Symbol)).
 						Style("width", "32px").Style("height", "32px").Style("vertical-align", "middle"),
 				),
-				app.Li().Body(app.A().Href("/logout").Text("Logout")),
+				app.Li().Body(app.A().Href("#").OnClick(h.onLogout).Text("Logout")),
 			),
 		),
 		app.Article().Body(

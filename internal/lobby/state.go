@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -17,15 +19,25 @@ type GlobalClientState struct {
 	Player *game.Player
 	Table  *game.Table
 	Conn   *websocket.Conn
+
+	// Login State (persistent across re-renders)
+	PendingName string
+	SymbolID    int
+	ShowSymbols bool
 }
 
 var State *GlobalClientState
 
 func InitState() {
 	if State == nil {
+		klog.V(1).Infof("InitState: creating new state (was nil)")
 		State = &GlobalClientState{
 			Player: &game.Player{},
 		}
+		rand.Seed(time.Now().UnixNano())
+		State.SymbolID = rand.Intn(57) + 1
+	} else {
+		klog.V(1).Infof("InitState: state already exists")
 	}
 }
 
