@@ -1,0 +1,23 @@
+package main
+
+import (
+	"github.com/janpfeifer/GoSpot/internal/lobby"
+	"github.com/maxence-charriere/go-app/v10/pkg/app"
+)
+
+func main() {
+	// Root route handles both Login and Home page logic
+	app.Route("/", func() app.Composer { return &lobby.Home{} })
+
+	// Table route for a specific game room
+	app.RouteWithRegexp("^/table/.*", func() app.Composer { return &lobby.Table{} })
+
+	// Initialize the global app state manager
+	lobby.InitState()
+
+	// When building for WEB (GOOS=js GOARCH=wasm), app.Run() executes the frontend logic
+	app.RunWhenOnBrowser()
+
+	// In server mode, app.RunWhenOnBrowser doesn't do anything.
+	// But our server is in cmd/server/, so we don't even reach here natively.
+}

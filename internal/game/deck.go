@@ -57,6 +57,14 @@ func GenerateDeck(order int) Deck {
 		}
 	}
 
+	// Shuffle the symbols within each card.
+	for _, card := range deck {
+		for j := len(card) - 1; j >= 0; j-- {
+			k := rand.Intn(j + 1)
+			card[j], card[k] = card[k], card[j]
+		}
+	}
+
 	return deck
 }
 
