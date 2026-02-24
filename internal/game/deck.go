@@ -25,10 +25,10 @@ func GenerateDeck(order int) Deck {
 	// ---------------------------------------------------------
 	// STEP 2: Generate the "Vertical Lines" (Next 'order' Cards)
 	// ---------------------------------------------------------
-	for j := 0; j < order; j++ {
+	for j := range order {
 		card = make([]int, 0, order+1)
 		card = append(card, 0)
-		for k := 0; k < order; k++ {
+		for k := range order {
 			// Formula: (n + 1) + (n * j) + k
 			symbol := (order + 1) + (order * j) + k
 			card = append(card, symbol)
@@ -39,11 +39,11 @@ func GenerateDeck(order int) Deck {
 	// ---------------------------------------------------------
 	// STEP 3: Generate the "Diagonal Lines" (Final 'order^2' Cards)
 	// ---------------------------------------------------------
-	for i := 0; i < order; i++ {
-		for j := 0; j < order; j++ {
+	for i := range order {
+		for j := range order {
 			card = make([]int, 0, order+1)
 			card = append(card, i+1)
-			for k := 0; k < order; k++ {
+			for k := range order {
 				// Formula: (n + 1) + (n * k) + ((i * k + j) % n)
 				symbol := (order + 1) + (order * k) + ((i*k + j) % order)
 				card = append(card, symbol)
