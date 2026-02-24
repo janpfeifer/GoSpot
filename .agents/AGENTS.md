@@ -21,6 +21,10 @@ This repository produces TWO binaries. You must strictly respect the separation 
 * `internal/engine/`: Frontend game rendering. Contains Ebitengine Canvas logic.
 * `web/`: Static assets (`index.html`, `css/pico.min.css`, `images/`, and the `.gitignore`'d `app.wasm`).
 
+### Symbol Images
+
+* `web/images/symbol_%02d.png`: there are 63 of them, but only the first 57 are used. 
+
 ## Crucial Architectural Rules
 1.  **Legal / Naming:** Do NOT use the words "Dobble" or "Spot It" anywhere in the source code, variables, or UI. Use "GoSpot", "Deck", "Card", and "Symbol".
 2.  **go-app vs. Ebitengine Transition:** `ebiten.RunGame()` is a blocking loop. The frontend must handle the transition from the `go-app` DOM UI (lobby) to the Ebitengine canvas gracefully without freezing the browser's main thread.
@@ -28,5 +32,44 @@ This repository produces TWO binaries. You must strictly respect the separation 
 4.  **No Wasm Bloat:** Do not add large third-party UI libraries. Rely on standard `go-app` HTML components styled naturally by Pico CSS.
 
 ## Standard Commands
-* **Build Wasm:** `GOOS=js GOARCH=wasm go build -o web/app.wasm ./cmd/wasm`
+* **Build Wasm:** `GOOS=j s GOARCH=wasm go build -o web/app.wasm ./cmd/wasm`
 * **Build Server:** `go build -o bin/server ./cmd/server`
+
+
+## Game Flow
+
+### Login
+
+* User choose their own name, and then pick one of the symbols to represent them.
+* If the user hasn't yet selected a "table", they select a new table name they are going to create.
+
+### "Table"
+
+* It has a name (with a suffix number if needed to make it unique)
+* The has a unique URL that can be shared to friends.
+* There is a "Copy URL" button (or "share" button) to copy the URL that can be shared in any chat app.
+* There is a box that lists the current players (name + their symbol) connected.
+* There is a "start" button enabled only when there are at least 2 players connected.
+* There is a "instructions" button (with a question mark maybe) that opens an overlayed window with the instructions.
+
+### Game Rules
+
+* Each player start with the same number of cards and one card starting in the middle (the target card).
+* Each player sees the symbols of the card in the middle and the symbols of their top card.
+* Each player has to click as quickly as possible on the symbol in their card matching any symbol on the card on the table:
+  * The first player to find and click on the matching symbol discards their top card: the top card becomes the new "target" card for everyone.
+  * The game works in cycles of 200ms (configurable): if there are ties in the time window (more than one player that clicked on a matching symbol), a random player (among those that clicked on a matching symbol) is picked as the "round winner", and discard its card.
+  * If a player clicks on a non-matching symbol, there is a 2s penalty (configurable): during this time their clicks are ignored.
+  * If the player that won the round clicked on the image that matches the symbol chosen for their player, they instead discard 3 cards at once! The 3rd card is then chosen as the new target.
+* The first player to reach 0 cards win. But the game continues until only one player is left.
+
+### Game page
+
+* Include a large canvas controlled by the Ebbiten engine.
+* Each card is round, and it displays its 7 symbols in a circle.
+* The top left area shows the active player top card. 
+* The bottom right are shows the current card "on the table" (our "target" card).
+* The top right and bottom left hold the symbol and name of each of the other players, with
+  a count of the number of cards.
+* A red aura is added to a player that is in penalty.
+
