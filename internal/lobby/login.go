@@ -85,6 +85,7 @@ func (l *Login) selectSymbol(ctx app.Context, e app.Event) {
 }
 
 func (l *Login) onLogin(ctx app.Context, e app.Event) {
+	klog.Infof("onLogin: name=%s, symbol=%d, %v", l.Name, l.SymbolID, ctx.JSSrc())
 	e.PreventDefault()
 	if l.Name == "" {
 		l.ErrorMessage = "Name cannot be empty."
