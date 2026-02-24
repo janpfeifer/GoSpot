@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	"github.com/janpfeifer/GoSpot/internal/lobby"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
@@ -9,9 +10,12 @@ import (
 )
 
 func main() {
-	// Initialize klog for WASM
-	klog.InitFlags(nil)
-	flag.Parse()
+	// Initialize klog for WASM, forcing logs to stderr (console)
+	fs := flag.NewFlagSet("klog", flag.ContinueOnError)
+	klog.InitFlags(fs)
+	fs.Set("logtostderr", "true")
+	klog.SetOutput(os.Stderr)
+	klog.Infof("WASM started!")
 
 	// Root route handles both Login and Home page logic
 	app.Route("/", func() app.Composer { return &lobby.Home{} })
