@@ -1,5 +1,8 @@
 .PHONY: build run clean build-wasm build-server
 
+# Build everything
+build: build-wasm build-server
+
 # Build the WebAssembly frontend and place it in the web/ directory
 build-wasm:
 	@echo "Building Wasm frontend..."
@@ -9,9 +12,6 @@ build-wasm:
 build-server:
 	@echo "Building Go backend..."
 	go build -o bin/server ./cmd/server
-
-# Build everything
-build: build-wasm build-server
 
 # Run the server (building it first to ensure it's up to date)
 run: build

@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/janpfeifer/GoSpot/internal/game"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
+	"k8s.io/klog/v2"
 )
 
 // GlobalClientState manages connection, current player info, and table state
@@ -70,7 +70,7 @@ func (s *GlobalClientState) readLoop(conn *websocket.Conn) {
 		var msg game.WsMessage
 		err := wsjson.Read(ctx, conn, &msg)
 		if err != nil {
-			log.Printf("WS read error: %v", err)
+			klog.Errorf("WS read error: %v", err)
 			break
 		}
 

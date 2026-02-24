@@ -2,13 +2,13 @@ package server
 
 import (
 	"context"
-	"log"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/janpfeifer/GoSpot/internal/lobby"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
+	"k8s.io/klog/v2"
 )
 
 // Run starts the server and blocks until the context is canceled.
@@ -64,9 +64,9 @@ func Run(ctx context.Context, addr string, started chan<- string) error {
 	}
 
 	go func() {
-		log.Printf("Server started on %s", actualAddr)
+		klog.Infof("Server started on %s", actualAddr)
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			log.Printf("Server error: %v", err)
+			klog.Infof("Server error: %v", err)
 		}
 	}()
 
@@ -76,6 +76,6 @@ func Run(ctx context.Context, addr string, started chan<- string) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	log.Println("Shutting down server...")
+	klog.Infof("Shutting down server...")
 	return srv.Shutdown(shutdownCtx)
 }

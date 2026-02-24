@@ -1,11 +1,18 @@
 package main
 
 import (
+	"flag"
+
 	"github.com/janpfeifer/GoSpot/internal/lobby"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
+	"k8s.io/klog/v2"
 )
 
 func main() {
+	// Initialize klog for WASM
+	klog.InitFlags(nil)
+	flag.Parse()
+
 	// Root route handles both Login and Home page logic
 	app.Route("/", func() app.Composer { return &lobby.Home{} })
 

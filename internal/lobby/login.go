@@ -9,6 +9,7 @@ import (
 
 	"github.com/janpfeifer/GoSpot/internal/game"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
+	"k8s.io/klog/v2"
 )
 
 // Login is the component for user login
@@ -36,7 +37,7 @@ func (l *Login) OnMount(ctx app.Context) {
 		var p game.Player
 		if err := json.Unmarshal([]byte(playerStr), &p); err == nil {
 			State.Player = &p
-			l.redirect()
+			l.redirect(ctx)
 			return
 		}
 	}
@@ -46,11 +47,11 @@ func (l *Login) OnMount(ctx app.Context) {
 	l.SymbolID = rand.Intn(57) + 1 // 1 to 57
 }
 
-func (l *Login) redirect() {
+func (l *Login) redirect(ctx app.Context) {
 	if l.ReturnURL != "" {
-		app.Window().Get("location").Set("href", l.ReturnURL)
+		ctx.Navigate(l.ReturnURL)
 	} else {
-		app.Window().Get("location").Set("href", "/")
+		ctx.Navigate("/")
 	}
 }
 
@@ -59,8 +60,12 @@ func (l *Login) onNameChange(ctx app.Context, e app.Event) {
 }
 
 func (l *Login) selectSymbol(ctx app.Context, e app.Event) {
-	// Let's get the id from dataset or value
-	idStr := ctx.JSSrc().Get("dataset").Get("id").String()
+	// Get the value from the radio input or data-id from the image
+	idStr := ctx.JSSrc().Get("value").String()
+	if idStr == "" || idStr == "undefined" {
+		idStr = ctx.JSSrc().Get("dataset").Get("id").String()
+	}
+
 	var id int
 	if _, err := fmt.Sscanf(idStr, "%d", &id); err == nil {
 		l.SymbolID = id
@@ -80,6 +85,8 @@ func (l *Login) onLogin(ctx app.Context, e app.Event) {
 		Symbol: l.SymbolID,
 	}
 
+	klog.V(1).Infof("Login registered for player: %s (ID: %s, Symbol: %d)", player.Name, player.ID, player.Symbol)
+
 	// Save to state
 	State.Player = &player
 
@@ -87,12 +94,12 @@ func (l *Login) onLogin(ctx app.Context, e app.Event) {
 	playerBytes, _ := json.Marshal(player)
 	setCookie("gospot_player", string(playerBytes), 30) // 30 days
 
-	l.redirect()
+	l.redirect(ctx)
 }
 
 func (l *Login) Render() app.UI {
 	var symbols []app.UI
-	for i := range 57 {
+	for i := 1; i <= 57; i++ {
 		imgSrc := fmt.Sprintf("/web/images/symbol_%02d.png", i)
 		style := "width: 48px; height: 48px; cursor: pointer; border-radius: 50%; padding: 4px;"
 		if l.SymbolID == i {
@@ -101,11 +108,20 @@ func (l *Login) Render() app.UI {
 			style += " border: 2px solid transparent;"
 		}
 
-		symbols = append(symbols, app.Img().
-			Src(imgSrc).
-			Style("cssText", style). // go-app allows setting cssText directly to apply inline strings
-			DataSet("id", fmt.Sprintf("%d", i)).
-			OnClick(l.selectSymbol))
+		symbols = append(symbols, app.Label().Body(
+			app.Input().
+				Type("radio").
+				Name("symbol").
+				Value(fmt.Sprintf("%d", i)).
+				Checked(l.SymbolID == i).
+				Style("display", "none").
+				OnChange(l.selectSymbol),
+			app.Img().
+				Src(imgSrc).
+				Style("cssText", style).
+				DataSet("id", fmt.Sprintf("%d", i)).
+				OnClick(l.selectSymbol),
+		))
 	}
 
 	var errorUI app.UI = app.Text("")
@@ -113,23 +129,34 @@ func (l *Login) Render() app.UI {
 		errorUI = app.Div().Style("color", "red").Style("margin-bottom", "1rem").Text(l.ErrorMessage)
 	}
 
+	selectedSymbolImg := fmt.Sprintf("/web/images/symbol_%02d.png", l.SymbolID)
+
 	return app.Main().Class("container").Body(
 		app.Article().Body(
 			app.Header().Body(
 				app.H2().Text("GoSpot Login"),
 			),
 			errorUI,
-			app.Form().OnSubmit(l.onLogin).Body(
+			app.Form().Method("POST").OnSubmit(l.onLogin).Body(
 				app.Label().For("name").Text("Player Name"),
-				app.Input().
-					Type("text").
-					ID("name").
-					Name("name").
-					Placeholder("Enter your name").
-					Required(true).
-					Value(l.Name).
-					AutoComplete(false).
-					OnInput(l.onNameChange),
+				app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "1rem").Style("margin-bottom", "1rem").Body(
+					app.Img().
+						Src(selectedSymbolImg).
+						Style("width", "64px").
+						Style("height", "64px").
+						Style("border-radius", "50%").
+						Style("border", "2px solid var(--primary)"),
+					app.Input().
+						Type("text").
+						ID("name").
+						Name("name").
+						Placeholder("Enter your name").
+						Required(true).
+						Value(l.Name).
+						AutoComplete(false).
+						OnInput(l.onNameChange).
+						Style("margin-bottom", "0"), // Remove pico.css default bottom margin
+				),
 				app.Label().Text("Choose your symbol"),
 				app.Div().Style("display", "flex").Style("flex-wrap", "wrap").Style("gap", "8px").Style("margin-bottom", "1rem").Body(
 					symbols...,

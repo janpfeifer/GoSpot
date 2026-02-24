@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/janpfeifer/GoSpot/internal/game"
+	"k8s.io/klog/v2"
 )
 
 // ServerState manages all active tables and WebSockets.
@@ -35,7 +35,7 @@ func (s *ServerState) HandleWS(w http.ResponseWriter, r *http.Request) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		log.Printf("Failed to accept websocket: %v", err)
+		klog.Errorf("Failed to accept websocket: %v", err)
 		return
 	}
 	defer conn.CloseNow()
@@ -44,12 +44,12 @@ func (s *ServerState) HandleWS(w http.ResponseWriter, r *http.Request) {
 	var msg game.WsMessage
 	err = wsjson.Read(r.Context(), conn, &msg)
 	if err != nil {
-		log.Printf("Failed to read initial msg: %v", err)
+		klog.Errorf("Failed to read initial msg: %v", err)
 		return
 	}
 
 	if msg.Type != game.MsgTypeJoin {
-		log.Printf("Expected Join message, got: %s", msg.Type)
+		klog.Errorf("Expected Join message, got: %s", msg.Type)
 		return
 	}
 
@@ -60,7 +60,7 @@ func (s *ServerState) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	var joinPayload game.JoinPayload
 	if err := json.Unmarshal(payloadBytes, &joinPayload); err != nil {
-		log.Printf("Invalid Join payload: %v", err)
+		klog.Errorf("Invalid Join payload: %v", err)
 		return
 	}
 
@@ -84,7 +84,7 @@ func (s *ServerState) HandleWS(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			log.Printf("WS read error: %v", err)
+			klog.Errorf("WS read error: %v", err)
 			break
 		}
 
