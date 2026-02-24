@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoSpot Symbols Index</title>
+    <link rel="stylesheet" href="../css/pico.min.css">
+    <style>
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 1rem;
+            padding: 1rem;
+        }
+        .symbol-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            border: 1px solid #ccc;
+            padding: 0.5rem;
+            border-radius: 8px;
+        }
+        .symbol-card img {
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 0.5rem;
+        }
+        .symbol-card span {
+            font-size: 0.8rem;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <h1>GoSpot Symbols</h1>
+        <div class="grid-container" id="grid">
+            <!-- JavaScript will populate this to avoid manual typing of 63 entries -->
+        </div>
+    </main>
+
+    <script>
+        const grid = document.getElementById('grid');
+        for (let i = 1; i <= 63; i++) {
+            const fileName = `symbol_${String(i).padStart(2, '0')}.png`;
+            const card = document.createElement('div');
+            card.className = 'symbol-card';
+            
+            const img = document.createElement('img');
+            img.src = fileName;
+            img.alt = fileName;
+            
+            const span = document.createElement('span');
+            span.textContent = fileName;
+            
+            card.appendChild(img);
+            card.appendChild(span);
+            grid.appendChild(card);
+        }
+    </script>
+</body>
+</html>
