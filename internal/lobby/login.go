@@ -101,7 +101,7 @@ func (l *Login) onLogin(ctx app.Context, e app.Event) {
 
 func (l *Login) Render() app.UI {
 	var symbols []app.UI
-	for i := 1; i <= 57; i++ {
+	for i := 0; i < 57; i++ {
 		imgSrc := fmt.Sprintf("/web/images/symbol_%02d.png", i)
 		style := "width: 48px; height: 48px; cursor: pointer; border-radius: 50%; padding: 4px;"
 		if State.SymbolID == i {
