@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	"github.com/janpfeifer/GoSpot/internal/lobby"
+	"github.com/janpfeifer/GoSpot/internal/frontend"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
 	"k8s.io/klog/v2"
 )
@@ -18,13 +18,16 @@ func main() {
 	klog.Infof("WASM started!")
 
 	// Root route handles both Login and Home page logic
-	app.Route("/", func() app.Composer { return &lobby.Home{} })
+	app.Route("/", func() app.Composer { return &frontend.Home{} })
 
 	// Table route for a specific game room
-	app.RouteWithRegexp("^/table/.*", func() app.Composer { return &lobby.Table{} })
+	app.RouteWithRegexp("^/table/.*", func() app.Composer { return &frontend.Table{} })
+
+	// Game route for a specific game room
+	app.RouteWithRegexp("^/game/.*", func() app.Composer { return &frontend.Game{} })
 
 	// Initialize the global app state manager
-	lobby.InitState()
+	frontend.InitState()
 
 	// When building for WEB (GOOS=js GOARCH=wasm), app.Run() executes the frontend logic
 	app.RunWhenOnBrowser()

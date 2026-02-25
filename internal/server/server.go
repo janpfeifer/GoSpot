@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/janpfeifer/GoSpot/internal/lobby"
+	"github.com/janpfeifer/GoSpot/internal/frontend"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
 	"k8s.io/klog/v2"
 )
@@ -29,14 +29,14 @@ func Run(ctx context.Context, addr string, started chan<- string) error {
 	}
 
 	// Initialize global lobby state for server-side prerendering without panic
-	lobby.InitState()
+	frontend.InitState()
 
 	// Initialize server state
 	serverState := NewServerState()
 
 	// Register go-app routes so the server knows how to prerender them
-	app.Route("/", func() app.Composer { return &lobby.Home{} })
-	app.RouteWithRegexp("^/table/.*", func() app.Composer { return &lobby.Table{} })
+	app.Route("/", func() app.Composer { return &frontend.Home{} })
+	app.RouteWithRegexp("^/table/.*", func() app.Composer { return &frontend.Table{} })
 
 	// The web assets and the compiled webassembly
 	// are served natively by the go-app framework

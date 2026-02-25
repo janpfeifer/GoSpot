@@ -1,4 +1,4 @@
-package lobby
+package frontend
 
 import (
 	"context"
@@ -81,7 +81,7 @@ func (s *GlobalClientState) musicLoop(stop chan struct{}) {
 
 		klog.Infof("musicLoop: Attempting to play...")
 		promise := s.Music.Call("play")
-		
+
 		started := make(chan bool, 1)
 		if promise.Truthy() {
 			var onSuccess, onFailure app.Func

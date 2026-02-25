@@ -16,28 +16,39 @@ body {
 .game-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    gap: 1rem;
-    height: calc(100vh - 10rem); /* Subtracting space for Nav and padding */
+    gap: 2rem;
+    height: calc(100vh - 8rem); /* Adjusted for better fit */
     margin-top: 1rem;
-    position: relative;
     overflow: hidden;
 }
 
-.card-container {
+.game-column {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.column-70 {
+    flex: 7; /* 70% height */
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    height: 100%;
-    min-height: 0; /* Important for grid shrinking */
+    min-height: 0;
+}
+
+.column-30 {
+    flex: 3; /* 30% height */
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .card-svg {
-    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.2));
+    filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.2));
     max-height: 100%;
-    width: auto;
     max-width: 100%;
+    height: auto;
+    width: auto;
 }
 
 .player-list-game {

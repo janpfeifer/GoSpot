@@ -1,8 +1,7 @@
-package lobby
+package frontend
 
 import (
 	"fmt"
-	"math"
 	"net/url"
 	"strings"
 
@@ -31,6 +30,9 @@ func (t *Table) OnMount(ctx app.Context) {
 			t.Error = State.Error
 			if t.State != nil {
 				klog.Infof("Table component: State updated. Player count: %d", len(t.State.Players))
+				if t.State.Started {
+					ctx.Navigate("/game/" + t.TableID)
+				}
 			} else if t.Error != "" {
 				klog.Infof("Table component: Error received. Error: %s", t.Error)
 			}
@@ -69,10 +71,12 @@ func (t *Table) OnNav(ctx app.Context) {
 	}
 
 	klog.Infof("Table component: Connecting to table ID: %s", t.TableID)
-	// Connect to WS
-	if err := State.ConnectWS(t.TableID); err != nil {
-		t.Error = fmt.Sprintf("Failed to connect to table: %v", err)
-		klog.Errorf("Table component: Error connecting: %v", err)
+	if State.Conn == nil || State.Table == nil || State.Table.ID != t.TableID {
+		// Connect to WS
+		if err := State.ConnectWS(t.TableID); err != nil {
+			t.Error = fmt.Sprintf("Failed to connect to table: %v", err)
+			klog.Errorf("Table component: Error connecting: %v", err)
+		}
 	}
 }
 
@@ -95,54 +99,6 @@ func (t *Table) onCancel(ctx app.Context, e app.Event) {
 func (t *Table) onToggleSound(ctx app.Context, e app.Event) {
 	e.PreventDefault()
 	State.ToggleSound()
-}
-
-func (t *Table) renderCard(symbols []int, size int) app.UI {
-	if len(symbols) == 0 {
-		return app.Div().Class("card-svg").Style("width", fmt.Sprintf("%dpx", size)).Style("height", fmt.Sprintf("%dpx", size)).Body(
-			app.P().Style("text-align", "center").Text("No card"),
-		)
-	}
-
-	center := float64(size) / 2
-	radius := float64(size) / 2
-	// Symbols further out from center
-	innerRadius := radius * 0.85 
-	symbolSize := float64(size) / 5.0
-
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf(`<svg width="%d" height="%d" viewBox="0 0 %d %d" class="card-svg">`, size, size, size, size))
-	
-	// Card background image
-	sb.WriteString(fmt.Sprintf(`<image href="/web/images/card_background.png" x="0" y="0" width="%d" height="%d" />`, size, size))
-
-	for i, s := range symbols {
-		angle := float64(i) * 2 * math.Pi / float64(len(symbols))
-		// Position symbols along the inner radius - moved slightly closer to center
-		x := center + innerRadius*0.70*math.Cos(angle) - symbolSize/2
-		y := center + innerRadius*0.70*math.Sin(angle) - symbolSize/2
-
-		sb.WriteString(fmt.Sprintf(
-			`<image href="/web/images/symbol_%02d.png" x="%f" y="%f" width="%f" height="%f" />`,
-			s, x, y, symbolSize, symbolSize,
-		))
-	}
-	sb.WriteString(`</svg>`)
-
-	return app.Raw(sb.String())
-}
-
-func (t *Table) renderPlayerList(players []*game.Player) app.UI {
-	var listItems []app.UI
-	for _, p := range players {
-		listItems = append(listItems, app.Li().Class("player-item-game").Body(
-			app.Img().
-				Src(fmt.Sprintf("/web/images/symbol_%02d.png", p.Symbol)).
-				Style("width", "32px").Style("height", "32px"),
-			app.Span().Text(fmt.Sprintf("%s: %d cards left", p.Name, p.Score)),
-		))
-	}
-	return app.Ul().Class("player-list-game").Body(listItems...)
 }
 
 func (t *Table) Render() app.UI {
@@ -174,48 +130,7 @@ func (t *Table) Render() app.UI {
 	if t.State == nil {
 		content = app.Div().Aria("busy", "true").Text("Connecting to table...")
 	} else if t.State.Started {
-		// Render Game Page using SVG and HTML
-		otherPlayers := make([]*game.Player, 0)
-		for _, p := range t.State.Players {
-			if p.ID != State.Player.ID {
-				otherPlayers = append(otherPlayers, p)
-			}
-		}
-
-		topRightPlayers := make([]*game.Player, 0)
-		bottomLeftPlayers := make([]*game.Player, 0)
-		for i, p := range otherPlayers {
-			if i%2 == 0 {
-				topRightPlayers = append(topRightPlayers, p)
-			} else {
-				bottomLeftPlayers = append(bottomLeftPlayers, p)
-			}
-		}
-
-		content = app.Div().Class("game-grid").Body(
-			// Top-Left: Current Player's info and Card
-			app.Div().Class("card-container").Style("grid-column", "1").Style("grid-row", "1").Body(
-				app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "0.5rem").Style("margin-bottom", "0.5rem").Body(
-					app.Img().
-						Src(fmt.Sprintf("/web/images/symbol_%02d.png", State.Player.Symbol)).
-						Style("width", "32px").Style("height", "32px"),
-					app.Strong().Text(fmt.Sprintf("%s (%d cards left)", State.Player.Name, State.Player.Score)),
-				),
-				t.renderCard(State.TopCard, 400),
-			),
-			// Top-Right: Half of other players
-			app.Div().Style("grid-column", "2").Style("grid-row", "1").Body(
-				t.renderPlayerList(topRightPlayers),
-			),
-			// Bottom-Left: Other half of other players
-			app.Div().Style("grid-column", "1").Style("grid-row", "2").Body(
-				t.renderPlayerList(bottomLeftPlayers),
-			),
-			// Bottom-Right: Target Card
-			app.Div().Class("card-container").Style("grid-column", "2").Style("grid-row", "2").Body(
-				t.renderCard(State.TargetCard, 400),
-			),
-		)
+		content = app.Div().Aria("busy", "true").Text("Redirecting to game...")
 	} else {
 		// Render Lobby
 		var playersList []app.UI

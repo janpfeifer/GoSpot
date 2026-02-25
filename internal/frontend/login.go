@@ -1,4 +1,4 @@
-package lobby
+package frontend
 
 import (
 	"encoding/json"
