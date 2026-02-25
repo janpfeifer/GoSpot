@@ -41,7 +41,7 @@ func (h *Home) onCreateTable(ctx app.Context, e app.Event) {
 		h.TableName = fmt.Sprintf("Table-%d", rand.Intn(10000))
 	}
 
-	app.Window().Get("location").Set("href", "/table/"+h.TableName)
+	ctx.Navigate("/table/" + h.TableName)
 }
 
 func (h *Home) onLogout(ctx app.Context, e app.Event) {

@@ -42,7 +42,7 @@ func (t *Table) OnNav(ctx app.Context) {
 	t.State = State.Table
 	// Check auth
 	if State.Player == nil || State.Player.ID == "" {
-		app.Window().Get("location").Set("href", "/?return="+app.Window().URL().Path)
+		ctx.Navigate("/?return=" + app.Window().URL().Path)
 		return
 	}
 
@@ -87,7 +87,9 @@ func (t *Table) Render() app.UI {
 			app.Article().Body(
 				app.H2().Text("Error"),
 				app.P().Style("color", "red").Text(t.Error),
-				app.A().Href("/").Text("Return to Home"),
+				app.A().Href("#").OnClick(func(ctx app.Context, e app.Event) {
+					ctx.Navigate("/")
+				}).Text("Return to Home"),
 			),
 		)
 	}
@@ -143,7 +145,7 @@ func (t *Table) Render() app.UI {
 		app.Nav().Body(
 			app.Ul().Body(
 				app.Li().Body(app.Strong().Text("GoSpot").Style("cursor", "pointer").OnClick(func(ctx app.Context, e app.Event) {
-					app.Window().Get("location").Set("href", "/")
+					ctx.Navigate("/")
 				})),
 			),
 			app.Ul().Body(
