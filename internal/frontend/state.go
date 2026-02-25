@@ -95,6 +95,7 @@ func (s *GlobalClientState) musicLoop(stop chan struct{}, src string) {
 			s.Music = app.Window().Get("document").Call("createElement", "audio")
 		}
 		s.Music.Set("src", src)
+		s.Music.Set("volume", 0.2)
 
 		klog.Infof("musicLoop: Attempting to play...")
 		promise := s.Music.Call("play")
