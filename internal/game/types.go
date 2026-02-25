@@ -14,14 +14,16 @@ type Player struct {
 	Score     int           `json:"score"`      // Number of cards
 	InPenalty bool          `json:"in_penalty"` // True if player clicked wrong symbol
 	Latency   time.Duration `json:"latency"`    // Measured round-trip time / 2 (one-way estimate)
+	Hand      [][]int       `json:"-"`          // Cards in player's hand (not sent in full state)
 }
 
 // Table represents a game room.
 type Table struct {
-	ID      string    `json:"id"`
-	Name    string    `json:"name"`
-	Players []*Player `json:"players"` // Players currently at the table
-	Started bool      `json:"started"` // True if game has started
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Players    []*Player `json:"players"`     // Players currently at the table
+	Started    bool      `json:"started"`     // True if game has started
+	TargetCard []int     `json:"target_card"` // Current card on the table
 }
 
 // Message type for WebSocket communication between client and server.
@@ -34,6 +36,7 @@ const (
 	MsgTypeCancel MessageType = "cancel" // Client (creator) wants to cancel/destroy the table
 	MsgTypePing   MessageType = "ping"   // Server pings client to measure RTT
 	MsgTypePong   MessageType = "pong"   // Client responds to ping
+	MsgTypeUpdate MessageType = "update" // Server sends game update (top card, target card)
 	MsgTypeError  MessageType = "error"  // Server sends an error message
 	MsgTypeChat   MessageType = "chat"   // (Optional) simple chat
 )
@@ -73,6 +76,8 @@ func (m *WsMessage) Parse() (any, error) {
 		target = &PingMessage{}
 	case MsgTypePong:
 		target = &PongMessage{}
+	case MsgTypeUpdate:
+		target = &UpdateMessage{}
 	case MsgTypeError:
 		target = &ErrorMessage{}
 	default:
@@ -96,6 +101,12 @@ type JoinMessage struct {
 // StateMessage is the payload for MsgTypeState
 type StateMessage struct {
 	Table Table `json:"table"`
+}
+
+// UpdateMessage is the payload for MsgTypeUpdate
+type UpdateMessage struct {
+	TargetCard []int `json:"target_card"` // Current card on the table
+	TopCard    []int `json:"top_card"`    // Player's top card
 }
 
 // PingMessage is the payload for MsgTypePing

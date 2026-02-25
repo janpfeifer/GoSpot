@@ -178,8 +178,25 @@ func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table
 	case game.MsgTypeStart:
 		// Only creator (first player) can start
 		if len(table.Players) >= 2 && table.Players[0].ID == player.ID {
+			klog.Infof("tableHandleMessage: Creator %s starting game on table %s", player.Name, table.ID)
+			deck := game.GenerateStandardDeck()
+			deck.Shuffle()
+
+			// 1. Initial Target Card
+			table.TargetCard = deck[0]
+			deck = deck[1:]
+
+			// 2. Distribute Hand
+			numPlayers := len(table.Players)
+			cardsPerPlayer := len(deck) / numPlayers
+			for i, p := range table.Players {
+				p.Hand = deck[i*cardsPerPlayer : (i+1)*cardsPerPlayer]
+				p.Score = len(p.Hand)
+			}
+
 			table.Started = true
 			s.broadcastStateLocked(table.ID)
+			s.broadcastUpdateLocked(table.ID)
 		}
 	case game.MsgTypeCancel:
 		// Only creator (first player) can cancel
@@ -223,6 +240,45 @@ func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table
 			}
 		}
 		s.broadcastStateLocked(table.ID)
+	}
+}
+
+// broadcastUpdateLocked broadcasts individual game updates (top card, target card) to each client.
+// Assumes s.mu is locked.
+func (s *ServerState) broadcastUpdateLocked(tableID string) {
+	table, ok := s.Tables[tableID]
+	if !ok || !table.Started {
+		return
+	}
+
+	for conn, playerID := range s.TableClients[tableID] {
+		// Find player hand
+		var player *game.Player
+		for _, p := range table.Players {
+			if p.ID == playerID {
+				player = p
+				break
+			}
+		}
+
+		if player == nil || len(player.Hand) == 0 {
+			continue
+		}
+
+		updateMsg, err := game.NewWsMessage(game.MsgTypeUpdate, game.UpdateMessage{
+			TargetCard: table.TargetCard,
+			TopCard:    player.Hand[0],
+		})
+		if err != nil {
+			klog.Errorf("broadcastUpdateLocked: Failed to create update message: %v", err)
+			continue
+		}
+
+		go func(c *websocket.Conn, um game.WsMessage) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+			_ = wsjson.Write(ctx, c, um)
+		}(conn, updateMsg)
 	}
 }
 

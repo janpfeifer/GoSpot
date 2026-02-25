@@ -30,6 +30,10 @@ type GlobalClientState struct {
 	Music        app.Value
 	musicStop    chan struct{}
 
+	// Game state (individual)
+	TopCard    []int
+	TargetCard []int
+
 	// Listeners for state updates
 	Listeners map[string]func()
 }
@@ -278,10 +282,25 @@ func (s *GlobalClientState) handleMessage(msg game.WsMessage) {
 			return
 		}
 
-		klog.Infof("handleMessage: Error received: %s", errMsg.Message)
 		State.Error = errMsg.Message
 		State.Table = nil
 		s.SyncMusic()
+		s.Notify()
+
+	case game.MsgTypeUpdate:
+		p, err := msg.Parse()
+		if err != nil {
+			klog.Errorf("handleMessage: Failed to parse update message: %v", err)
+			return
+		}
+		updateMsg, ok := p.(*game.UpdateMessage)
+		if !ok {
+			return
+		}
+
+		klog.Infof("handleMessage: Game update received. TopCard: %v, TargetCard: %v", updateMsg.TopCard, updateMsg.TargetCard)
+		State.TopCard = updateMsg.TopCard
+		State.TargetCard = updateMsg.TargetCard
 		s.Notify()
 
 	case game.MsgTypePing:

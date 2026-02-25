@@ -140,4 +140,51 @@ func TestTableWebsocket(t *testing.T) {
 
 	checkState(conn1, "Player 1")
 	checkState(conn2, "Player 2")
+
+	// Player 1 starts the game
+	startMsg, _ := game.NewWsMessage(game.MsgTypeStart, nil)
+	if err := wsjson.Write(ctx, conn1, startMsg); err != nil {
+		t.Fatalf("Player 1 failed to send start message: %v", err)
+	}
+
+	checkCards := func(conn *websocket.Conn, name string) []int {
+		var msg game.WsMessage
+		var targetCard []int
+		for {
+			if err := wsjson.Read(ctx, conn, &msg); err != nil {
+				t.Fatalf("%s failed to read message: %v", name, err)
+			}
+			if msg.Type == game.MsgTypeUpdate {
+				p, err := msg.Parse()
+				if err != nil {
+					t.Fatalf("%s: Failed to parse update payload: %v", name, err)
+				}
+				updateMsg, ok := p.(*game.UpdateMessage)
+				if !ok {
+					t.Fatalf("%s: Expected UpdateMessage, got: %T", name, p)
+				}
+
+				if len(updateMsg.TopCard) == 0 {
+					t.Fatalf("%s received empty top card", name)
+				}
+				if len(updateMsg.TargetCard) == 0 {
+					t.Fatalf("%s received empty target card", name)
+				}
+				targetCard = updateMsg.TargetCard
+				return targetCard
+			}
+		}
+	}
+
+	target1 := checkCards(conn1, "Player 1")
+	target2 := checkCards(conn2, "Player 2")
+
+	if len(target1) != len(target2) {
+		t.Fatalf("Target cards have different lengths: P1=%d, P2=%d", len(target1), len(target2))
+	}
+	for i := range target1 {
+		if target1[i] != target2[i] {
+			t.Fatalf("Target cards differ: P1=%v, P2=%v", target1, target2)
+		}
+	}
 }
