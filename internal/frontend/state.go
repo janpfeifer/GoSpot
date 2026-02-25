@@ -29,6 +29,7 @@ type GlobalClientState struct {
 	SoundEnabled bool
 	Music        app.Value
 	musicStop    chan struct{}
+	musicSrc     string
 
 	// Game state (individual)
 	TopCard    []int
@@ -52,32 +53,48 @@ func (s *GlobalClientState) SyncMusic() {
 		return
 	}
 
-	// Should play if not in a table, or if table is not started, AND sound is enabled
-	shouldPlay := s.SoundEnabled && (s.Table == nil || !s.Table.Started)
-
-	if shouldPlay && s.musicStop == nil {
-		klog.Infof("SyncMusic: Starting lobby music loop")
-		s.musicStop = make(chan struct{})
-		go s.musicLoop(s.musicStop)
-	} else if !shouldPlay && s.musicStop != nil {
-		klog.Infof("SyncMusic: Stopping lobby music loop")
-		close(s.musicStop)
-		s.musicStop = nil
-		if s.Music != nil && s.Music.Truthy() {
-			s.Music.Call("pause")
-			s.Music.Set("currentTime", 0)
+	if !s.SoundEnabled {
+		if s.musicStop != nil {
+			klog.Infof("SyncMusic: Stopping music loop (SoundEnabled=false)")
+			close(s.musicStop)
+			s.musicStop = nil
+			if s.Music != nil && s.Music.Truthy() {
+				s.Music.Call("pause")
+				s.Music.Set("currentTime", 0)
+			}
 		}
+		return
+	}
+
+	var targetSrc string
+	if s.Table != nil && s.Table.Started {
+		targetSrc = "/web/sounds/Glimmering_Gauntlet.mp3"
+	} else {
+		targetSrc = "/web/sounds/Xylophonic_Cascade.mp3"
+	}
+
+	if s.musicStop == nil || s.musicSrc != targetSrc {
+		if s.musicStop != nil {
+			close(s.musicStop)
+			if s.Music != nil && s.Music.Truthy() {
+				s.Music.Call("pause")
+				s.Music.Set("currentTime", 0)
+			}
+		}
+		s.musicSrc = targetSrc
+		s.musicStop = make(chan struct{})
+		go s.musicLoop(s.musicStop, targetSrc)
 	}
 }
 
-func (s *GlobalClientState) musicLoop(stop chan struct{}) {
+func (s *GlobalClientState) musicLoop(stop chan struct{}, src string) {
 	klog.Infof("musicLoop: Started")
 	for {
 		if s.Music == nil || !s.Music.Truthy() {
 			klog.Infof("musicLoop: Creating audio element")
 			s.Music = app.Window().Get("document").Call("createElement", "audio")
-			s.Music.Set("src", "/web/sounds/Xylophonic_Cascade.mp3")
 		}
+		s.Music.Set("src", src)
 
 		klog.Infof("musicLoop: Attempting to play...")
 		promise := s.Music.Call("play")

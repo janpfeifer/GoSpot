@@ -159,11 +159,6 @@ func (g *Game) Render() app.UI {
 		)
 	}
 
-	soundIcon := "🔊"
-	if !State.SoundEnabled {
-		soundIcon = "🔇"
-	}
-
 	if g.Error != "" {
 		return app.Main().Class("container").Body(
 			app.Article().Body(
@@ -234,41 +229,7 @@ func (g *Game) Render() app.UI {
 	}
 
 	return app.Main().Class("container").Body(
-		app.Nav().Body(
-			app.Ul().Body(
-				app.Li().Body(
-					app.Img().
-						Src("/web/images/banner.png").
-						Style("height", "2rem").
-						Style("vertical-align", "middle").
-						Style("cursor", "pointer").
-						Style("border-radius", "8px").
-						OnClick(func(ctx app.Context, e app.Event) {
-							ctx.Navigate("/")
-						}),
-				),
-			),
-			app.Ul().Body(
-				app.Li().Body(
-					app.A().
-						Href("#").
-						OnClick(g.onToggleSound).
-						Style("text-decoration", "none").
-						Body(
-							app.Span().
-								Class("sound-icon").
-								Style("font-family", "system-ui").
-								Text(soundIcon),
-						),
-				),
-				app.Li().Body(
-					app.Span().Style("margin-right", "8px").Text(State.Player.Name),
-					app.Img().
-						Src(fmt.Sprintf("/web/images/symbol_%02d.png", State.Player.Symbol)).
-						Style("width", "32px").Style("height", "32px").Style("vertical-align", "middle"),
-				),
-			),
-		),
+		&TopBar{},
 		content,
 	)
 }

@@ -80,44 +80,8 @@ func (h *Home) Render() app.UI {
 		return h.login
 	}
 
-	soundIcon := "🔊"
-	if !State.SoundEnabled {
-		soundIcon = "🔇"
-	}
-
 	return app.Main().Class("container").Body(
-		app.Nav().Body(
-			app.Ul().Body(
-				app.Li().Body(
-					app.Img().
-						Src("/web/images/banner.png").
-						Style("height", "2rem").
-						Style("vertical-align", "middle").
-						Style("border-radius", "8px"),
-				),
-			),
-			app.Ul().Body(
-				app.Li().Body(
-					app.A().
-						Href("#").
-						OnClick(h.onToggleSound).
-						Style("text-decoration", "none").
-						Body(
-							app.Span().
-								Class("sound-icon").
-								Style("font-family", "system-ui").
-								Text(soundIcon),
-						),
-				),
-				app.Li().Body(
-					app.Span().Style("margin-right", "8px").Text(State.Player.Name),
-					app.Img().
-						Src(fmt.Sprintf("/web/images/symbol_%02d.png", State.Player.Symbol)).
-						Style("width", "32px").Style("height", "32px").Style("vertical-align", "middle"),
-				),
-				app.Li().Body(app.A().Href("#").OnClick(h.onLogout).Text("Logout")),
-			),
-		),
+		&TopBar{ShowLogout: true},
 		app.Article().Body(
 			app.Header().Body(
 				app.H2().Text("Create or Join a Table"),
