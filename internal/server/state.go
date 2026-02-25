@@ -75,6 +75,12 @@ func (s *ServerState) HandleWS(w http.ResponseWriter, r *http.Request) {
 	klog.Infof("HandleWS: Player %s (%s) joining table %s", player.Name, player.ID, tableID)
 	table := s.joinTable(tableID, &player, conn)
 
+	// Send initial Ping
+	pingMsg, _ := game.NewWsMessage(game.MsgTypePing, game.PingMessage{
+		ServerTime: time.Now().UnixNano(),
+	})
+	_ = wsjson.Write(r.Context(), conn, pingMsg)
+
 	// Disconnect handler
 	defer s.leaveTable(tableID, conn)
 
@@ -195,6 +201,28 @@ func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table
 			delete(s.Tables, table.ID)
 			delete(s.TableClients, table.ID)
 		}
+	case game.MsgTypePong:
+		p, err := msg.Parse()
+		if err != nil {
+			klog.Errorf("tableHandleMessage: Failed to parse pong message: %v", err)
+			return
+		}
+		pong, ok := p.(*game.PongMessage)
+		if !ok {
+			return
+		}
+		rtt := time.Now().UnixNano() - pong.ServerTime
+		player.Latency = time.Duration(rtt / 2)
+		klog.Infof("tableHandleMessage: Player %s latency: %v", player.Name, player.Latency)
+
+		// Update in table.Players slice
+		for _, tp := range table.Players {
+			if tp.ID == player.ID {
+				tp.Latency = player.Latency
+				break
+			}
+		}
+		s.broadcastStateLocked(table.ID)
 	}
 }
 

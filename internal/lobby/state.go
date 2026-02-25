@@ -151,6 +151,24 @@ func (s *GlobalClientState) handleMessage(msg game.WsMessage) {
 		State.Error = errMsg.Message
 		State.Table = nil
 		s.Notify()
+
+	case game.MsgTypePing:
+		p, err := msg.Parse()
+		if err != nil {
+			klog.Errorf("handleMessage: Failed to parse ping message: %v", err)
+			return
+		}
+		ping, ok := p.(*game.PingMessage)
+		if !ok {
+			return
+		}
+		pongMsg, _ := game.NewWsMessage(game.MsgTypePong, game.PongMessage{
+			ServerTime: ping.ServerTime,
+			ClientTime: time.Now().UnixNano(),
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+		defer cancel()
+		wsjson.Write(ctx, s.Conn, pongMsg)
 	}
 }
 

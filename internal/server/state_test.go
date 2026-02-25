@@ -46,6 +46,37 @@ func TestTableWebsocket(t *testing.T) {
 			conn.CloseNow()
 			return nil, err
 		}
+
+		// Handle initial Ping from server
+		var pingMsg game.WsMessage
+		if err := wsjson.Read(ctx, conn, &pingMsg); err != nil {
+			conn.CloseNow()
+			return nil, err
+		}
+		if pingMsg.Type != game.MsgTypePing {
+			conn.CloseNow()
+			return nil, err
+		}
+
+		p, err := pingMsg.Parse()
+		if err != nil {
+			conn.CloseNow()
+			return nil, err
+		}
+		ping, ok := p.(*game.PingMessage)
+		if !ok {
+			conn.CloseNow()
+			return nil, err
+		}
+		pongMsg, _ := game.NewWsMessage(game.MsgTypePong, game.PongMessage{
+			ServerTime: ping.ServerTime,
+			ClientTime: time.Now().UnixNano(),
+		})
+		if err := wsjson.Write(ctx, conn, pongMsg); err != nil {
+			conn.CloseNow()
+			return nil, err
+		}
+
 		return conn, nil
 	}
 

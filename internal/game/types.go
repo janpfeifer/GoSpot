@@ -3,15 +3,17 @@ package game
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 // Player represents a user in the lobby or game.
 type Player struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Symbol    int    `json:"symbol"`     // Symbol ID chosen by the player
-	Score     int    `json:"score"`      // Number of cards
-	InPenalty bool   `json:"in_penalty"` // True if player clicked wrong symbol
+	ID        string        `json:"id"`
+	Name      string        `json:"name"`
+	Symbol    int           `json:"symbol"`     // Symbol ID chosen by the player
+	Score     int           `json:"score"`      // Number of cards
+	InPenalty bool          `json:"in_penalty"` // True if player clicked wrong symbol
+	Latency   time.Duration `json:"latency"`    // Measured round-trip time / 2 (one-way estimate)
 }
 
 // Table represents a game room.
@@ -30,6 +32,8 @@ const (
 	MsgTypeState  MessageType = "state"  // Server sends full table state
 	MsgTypeStart  MessageType = "start"  // Client wants to start the game
 	MsgTypeCancel MessageType = "cancel" // Client (creator) wants to cancel/destroy the table
+	MsgTypePing   MessageType = "ping"   // Server pings client to measure RTT
+	MsgTypePong   MessageType = "pong"   // Client responds to ping
 	MsgTypeError  MessageType = "error"  // Server sends an error message
 	MsgTypeChat   MessageType = "chat"   // (Optional) simple chat
 )
@@ -65,6 +69,10 @@ func (m *WsMessage) Parse() (any, error) {
 		target = &StateMessage{}
 	case MsgTypeStart, MsgTypeCancel:
 		return nil, nil // These messages have no payload
+	case MsgTypePing:
+		target = &PingMessage{}
+	case MsgTypePong:
+		target = &PongMessage{}
 	case MsgTypeError:
 		target = &ErrorMessage{}
 	default:
@@ -88,6 +96,17 @@ type JoinMessage struct {
 // StateMessage is the payload for MsgTypeState
 type StateMessage struct {
 	Table Table `json:"table"`
+}
+
+// PingMessage is the payload for MsgTypePing
+type PingMessage struct {
+	ServerTime int64 `json:"server_time"` // Nanoseconds since Unix epoch
+}
+
+// PongMessage is the payload for MsgTypePong
+type PongMessage struct {
+	ServerTime int64 `json:"server_time"` // Same value from Ping
+	ClientTime int64 `json:"client_time"` // Client's own timestamp
 }
 
 // ErrorMessage is the payload for MsgTypeError
