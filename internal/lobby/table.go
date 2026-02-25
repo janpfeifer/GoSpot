@@ -143,9 +143,20 @@ func (t *Table) Render() app.UI {
 				app.Div().Body(
 					app.H3().Text(fmt.Sprintf("Table: %s", t.TableID)),
 					app.P().Text("Share this URL to invite friends:"),
-					app.Div().Class("grid").Body(
-						app.Input().Type("text").ReadOnly(true).Value(app.Window().URL().String()),
-						app.Button().Class("secondary").Text("Copy URL").OnClick(t.onCopyURL),
+					app.Div().Style("display", "flex").Style("gap", "0.5rem").Style("align-items", "center").Style("margin-bottom", "var(--pico-spacing)").Body(
+						app.Input().
+							Type("text").
+							ReadOnly(true).
+							Value(app.Window().URL().String()).
+							Style("margin-bottom", "0").
+							Style("flex", "1"),
+						app.Button().
+							Class("secondary").
+							Text("Copy URL").
+							OnClick(t.onCopyURL).
+							Style("margin-bottom", "0").
+							Style("width", "auto").
+							Style("padding", "0.5rem 1rem"),
 					),
 				),
 			),
