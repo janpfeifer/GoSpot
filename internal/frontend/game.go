@@ -182,27 +182,33 @@ func (g *Game) Render() app.UI {
 		}
 
 		content = app.Div().Class("game-grid").Body(
-			// Top-Left: Current Player's info and Card
-			app.Div().Class("card-container").Style("grid-column", "1").Style("grid-row", "1").Body(
-				app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "0.5rem").Style("margin-bottom", "0.5rem").Body(
-					app.Img().
-						Src(fmt.Sprintf("/web/images/symbol_%02d.png", State.Player.Symbol)).
-						Style("width", "32px").Style("height", "32px"),
-					app.Strong().Text(fmt.Sprintf("%s (%d cards left)", State.Player.Name, State.Player.Score)),
+			// First Column (70/30)
+			app.Div().Class("game-column").Body(
+				// Top: Current Player's info and Card (70%)
+				app.Div().Class("column-70").Class("card-container").Body(
+					app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "0.5rem").Style("margin-bottom", "0.5rem").Body(
+						app.Img().
+							Src(fmt.Sprintf("/web/images/symbol_%02d.png", State.Player.Symbol)).
+							Style("width", "32px").Style("height", "32px"),
+						app.Strong().Text(fmt.Sprintf("%s (%d cards left)", State.Player.Name, State.Player.Score)),
+					),
+					g.renderCard(State.TopCard, 520),
 				),
-				g.renderCard(State.TopCard, 520),
+				// Bottom: Other players list - second half (30%)
+				app.Div().Class("column-30").Body(
+					g.renderPlayerList(bottomLeftPlayers),
+				),
 			),
-			// Top-Right: Half of other players
-			app.Div().Style("grid-column", "2").Style("grid-row", "1").Body(
-				g.renderPlayerList(topRightPlayers),
-			),
-			// Bottom-Left: Other half of other players
-			app.Div().Style("grid-column", "1").Style("grid-row", "2").Body(
-				g.renderPlayerList(bottomLeftPlayers),
-			),
-			// Bottom-Right: Target Card
-			app.Div().Class("card-container").Style("grid-column", "2").Style("grid-row", "2").Body(
-				g.renderCard(State.TargetCard, 520),
+			// Second Column (30/70)
+			app.Div().Class("game-column").Body(
+				// Top: Other players list - first half (30%)
+				app.Div().Class("column-30").Body(
+					g.renderPlayerList(topRightPlayers),
+				),
+				// Bottom: Target Card (70%)
+				app.Div().Class("column-70").Class("card-container").Body(
+					g.renderCard(State.TargetCard, 520),
+				),
 			),
 		)
 	} else {
