@@ -86,7 +86,7 @@ func (g *Game) onToggleSound(ctx app.Context, e app.Event) {
 	State.ToggleSound()
 }
 
-func (g *Game) renderCard(symbols []int, size int) app.UI {
+func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 	if len(symbols) == 0 {
 		return app.Div().Class("card-svg").Style("width", fmt.Sprintf("%dpx", size)).Style("height", fmt.Sprintf("%dpx", size)).Body(
 			app.P().Style("text-align", "center").Text("No card"),
@@ -111,9 +111,22 @@ func (g *Game) renderCard(symbols []int, size int) app.UI {
 		x := center + innerRadius*0.70*math.Cos(angle) - symbolSize/2
 		y := center + innerRadius*0.70*math.Sin(angle) - symbolSize/2
 
+		cursorStyle := ""
+		if isClickable {
+			// Add a ring around the symbol to indicate it is clickable
+			cx := x + symbolSize/2
+			cy := y + symbolSize/2
+			ringRadius := symbolSize * 0.45 // smaller ring
+			sb.WriteString(fmt.Sprintf(
+				`<circle cx="%f" cy="%f" r="%f" fill="none" stroke="var(--pico-primary)" stroke-width="1" style="cursor: pointer;" />`,
+				cx, cy, ringRadius,
+			))
+			cursorStyle = ` style="cursor: pointer;"`
+		}
+
 		sb.WriteString(fmt.Sprintf(
-			`<image href="/web/images/symbol_%02d.png" x="%f" y="%f" width="%f" height="%f" />`,
-			s, x, y, symbolSize, symbolSize,
+			`<image href="/web/images/symbol_%02d.png" x="%f" y="%f" width="%f" height="%f"%s />`,
+			s, x, y, symbolSize, symbolSize, cursorStyle,
 		))
 	}
 	sb.WriteString(`</svg>`)
@@ -192,7 +205,7 @@ func (g *Game) Render() app.UI {
 							Style("width", "32px").Style("height", "32px"),
 						app.Strong().Text(fmt.Sprintf("%s (%d cards left)", State.Player.Name, State.Player.Score)),
 					),
-					g.renderCard(State.TopCard, 520),
+					g.renderCard(State.TopCard, 520, true),
 				),
 				// Bottom: Other players list - second half (30%)
 				app.Div().Class("column-30").Body(
@@ -207,7 +220,7 @@ func (g *Game) Render() app.UI {
 				),
 				// Bottom: Target Card (70%)
 				app.Div().Class("column-70").Class("card-container").Body(
-					g.renderCard(State.TargetCard, 520),
+					g.renderCard(State.TargetCard, 520, false),
 				),
 			),
 		)
