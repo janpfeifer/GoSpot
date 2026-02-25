@@ -102,6 +102,7 @@ func (l *Login) onLogin(ctx app.Context, e app.Event) {
 	playerBytes, _ := json.Marshal(player)
 	setCookie("gospot_player", string(playerBytes), 30) // 30 days
 
+	State.SyncMusic()
 	l.redirect(ctx)
 }
 

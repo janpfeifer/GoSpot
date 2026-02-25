@@ -36,6 +36,7 @@ func (t *Table) OnMount(ctx app.Context) {
 		})
 	}
 	State.Listeners["table"] = t.onUpdate
+	State.SyncMusic()
 }
 
 func (t *Table) OnDismount() {
@@ -46,6 +47,7 @@ func (t *Table) OnDismount() {
 func (t *Table) OnNav(ctx app.Context) {
 	klog.Infof("Table component: OnNav called")
 	t.State = State.Table
+	State.SyncMusic()
 	// Check auth
 	if State.Player == nil || State.Player.ID == "" {
 		ctx.Navigate("/?return=" + url.QueryEscape(app.Window().URL().Path))
@@ -85,7 +87,13 @@ func (t *Table) onStart(ctx app.Context, e app.Event) {
 
 func (t *Table) onCancel(ctx app.Context, e app.Event) {
 	State.SendCancel()
+	State.SyncMusic()
 	ctx.Navigate("/")
+}
+
+func (t *Table) onToggleSound(ctx app.Context, e app.Event) {
+	e.PreventDefault()
+	State.ToggleSound()
 }
 
 func (t *Table) Render() app.UI {
@@ -93,6 +101,11 @@ func (t *Table) Render() app.UI {
 		return app.Main().Class("container").Body(
 			app.Div().Aria("busy", "true").Text("Redirecting to login..."),
 		)
+	}
+
+	soundIcon := "🔊"
+	if !State.SoundEnabled {
+		soundIcon = "🔇"
 	}
 
 	if t.Error != "" {
@@ -208,6 +221,18 @@ func (t *Table) Render() app.UI {
 				),
 			),
 			app.Ul().Body(
+				app.Li().Body(
+					app.A().
+						Href("#").
+						OnClick(t.onToggleSound).
+						Style("text-decoration", "none").
+						Body(
+							app.Span().
+								Class("sound-icon").
+								Style("font-family", "system-ui").
+								Text(soundIcon),
+						),
+				),
 				app.Li().Body(
 					app.Span().Style("margin-right", "8px").Text(State.Player.Name),
 					app.Img().

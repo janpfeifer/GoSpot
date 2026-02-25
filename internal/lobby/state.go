@@ -25,11 +25,140 @@ type GlobalClientState struct {
 	SymbolID    int
 	ShowSymbols bool
 
+	// Music state
+	SoundEnabled bool
+	Music        app.Value
+	musicStop    chan struct{}
+
 	// Listeners for state updates
 	Listeners map[string]func()
 }
 
 var State *GlobalClientState
+
+func (s *GlobalClientState) ToggleSound() {
+	s.SoundEnabled = !s.SoundEnabled
+	klog.Infof("ToggleSound: SoundEnabled is now %v", s.SoundEnabled)
+	s.SyncMusic()
+	s.Notify()
+}
+
+func (s *GlobalClientState) SyncMusic() {
+	if app.IsServer {
+		return
+	}
+
+	// Should play if not in a table, or if table is not started, AND sound is enabled
+	shouldPlay := s.SoundEnabled && (s.Table == nil || !s.Table.Started)
+
+	if shouldPlay && s.musicStop == nil {
+		klog.Infof("SyncMusic: Starting lobby music loop")
+		s.musicStop = make(chan struct{})
+		go s.musicLoop(s.musicStop)
+	} else if !shouldPlay && s.musicStop != nil {
+		klog.Infof("SyncMusic: Stopping lobby music loop")
+		close(s.musicStop)
+		s.musicStop = nil
+		if s.Music != nil && s.Music.Truthy() {
+			s.Music.Call("pause")
+			s.Music.Set("currentTime", 0)
+		}
+	}
+}
+
+func (s *GlobalClientState) musicLoop(stop chan struct{}) {
+	klog.Infof("musicLoop: Started")
+	for {
+		if s.Music == nil || !s.Music.Truthy() {
+			klog.Infof("musicLoop: Creating audio element")
+			s.Music = app.Window().Get("document").Call("createElement", "audio")
+			s.Music.Set("src", "/web/sounds/Xylophonic_Cascade.mp3")
+		}
+
+		klog.Infof("musicLoop: Attempting to play...")
+		promise := s.Music.Call("play")
+		
+		started := make(chan bool, 1)
+		if promise.Truthy() {
+			var onSuccess, onFailure app.Func
+			onSuccess = app.FuncOf(func(this app.Value, args []app.Value) any {
+				klog.Infof("musicLoop: Play started successfully")
+				select {
+				case started <- true:
+				default:
+				}
+				onSuccess.Release()
+				onFailure.Release()
+				return nil
+			})
+			onFailure = app.FuncOf(func(this app.Value, args []app.Value) any {
+				klog.Errorf("musicLoop: Play failed (likely autoplay block): %v", args[0])
+				select {
+				case started <- false:
+				default:
+				}
+				onSuccess.Release()
+				onFailure.Release()
+				return nil
+			})
+			promise.Call("then", onSuccess)
+			promise.Call("catch", onFailure)
+		} else {
+			klog.Warning("musicLoop: Play did not return a promise")
+			started <- true
+		}
+
+		var ok bool
+		select {
+		case <-stop:
+			return
+		case ok = <-started:
+		case <-time.After(5 * time.Second):
+			klog.Warning("musicLoop: Play promise timed out")
+			ok = false
+		}
+
+		if ok {
+			// Wait for the song to finish or stop signal
+			ended := make(chan struct{})
+			onEnded := app.FuncOf(func(this app.Value, args []app.Value) any {
+				select {
+				case ended <- struct{}{}:
+				default:
+				}
+				return nil
+			})
+			s.Music.Call("addEventListener", "ended", onEnded)
+
+			select {
+			case <-stop:
+				s.Music.Call("removeEventListener", "ended", onEnded)
+				onEnded.Release()
+				return
+			case <-ended:
+				s.Music.Call("removeEventListener", "ended", onEnded)
+				onEnded.Release()
+				klog.Infof("musicLoop: Finished playing")
+			}
+
+			// 3 second pause
+			klog.Infof("musicLoop: Pausing for 3 seconds")
+			select {
+			case <-stop:
+				return
+			case <-time.After(3 * time.Second):
+			}
+		} else {
+			// If failed, wait a bit before retrying (avoid busy loop)
+			klog.Infof("musicLoop: Retrying in 5 seconds...")
+			select {
+			case <-stop:
+				return
+			case <-time.After(5 * time.Second):
+			}
+		}
+	}
+}
 
 func (s *GlobalClientState) Notify() {
 	klog.Infof("GlobalClientState: Notifying %d listeners", len(s.Listeners))
@@ -44,8 +173,9 @@ func InitState() {
 	if State == nil {
 		klog.V(1).Infof("InitState: creating new state (was nil)")
 		State = &GlobalClientState{
-			Player:    &game.Player{},
-			Listeners: make(map[string]func()),
+			Player:       &game.Player{},
+			Listeners:    make(map[string]func()),
+			SoundEnabled: true,
 		}
 		// rand.Seed is deprecated in Go 1.20+, but we can still use it or use rand.New(rand.NewSource(...))
 		// For now keeping it simple as this is Wasm.
@@ -133,6 +263,7 @@ func (s *GlobalClientState) handleMessage(msg game.WsMessage) {
 		klog.Infof("handleMessage: State updated. Players: %d", len(stateMsg.Table.Players))
 		State.Table = &stateMsg.Table
 		State.Error = ""
+		s.SyncMusic()
 		s.Notify()
 
 	case game.MsgTypeError:
@@ -150,6 +281,7 @@ func (s *GlobalClientState) handleMessage(msg game.WsMessage) {
 		klog.Infof("handleMessage: Error received: %s", errMsg.Message)
 		State.Error = errMsg.Message
 		State.Table = nil
+		s.SyncMusic()
 		s.Notify()
 
 	case game.MsgTypePing:

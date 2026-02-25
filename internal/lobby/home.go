@@ -19,10 +19,19 @@ type Home struct {
 func (h *Home) OnMount(ctx app.Context) {
 	klog.V(1).Infof("Home: OnMount called")
 	h.login = &Login{}
+	State.Listeners["home"] = func() {
+		ctx.Dispatch(func(ctx app.Context) {})
+	}
+	State.SyncMusic()
+}
+
+func (h *Home) OnDismount() {
+	delete(State.Listeners, "home")
 }
 
 func (h *Home) OnNav(ctx app.Context) {
 	klog.V(1).Infof("Home: OnNav called, Path=%s", app.Window().URL().Path)
+	State.SyncMusic()
 	if h.login != nil {
 		h.login.OnNav(ctx)
 	}
@@ -48,7 +57,13 @@ func (h *Home) onLogout(ctx app.Context, e app.Event) {
 	State.Player = nil
 	// Clear cookie in JS as well
 	app.Window().Get("document").Set("cookie", "gospot_player=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;")
+	State.SyncMusic()
 	ctx.Navigate("/")
+}
+
+func (h *Home) onToggleSound(ctx app.Context, e app.Event) {
+	e.PreventDefault()
+	State.ToggleSound()
 }
 
 func (h *Home) Render() app.UI {
@@ -58,6 +73,11 @@ func (h *Home) Render() app.UI {
 			h.login = &Login{}
 		}
 		return h.login
+	}
+
+	soundIcon := "🔊"
+	if !State.SoundEnabled {
+		soundIcon = "🔇"
 	}
 
 	return app.Main().Class("container").Body(
@@ -72,6 +92,18 @@ func (h *Home) Render() app.UI {
 				),
 			),
 			app.Ul().Body(
+				app.Li().Body(
+					app.A().
+						Href("#").
+						OnClick(h.onToggleSound).
+						Style("text-decoration", "none").
+						Body(
+							app.Span().
+								Class("sound-icon").
+								Style("font-family", "system-ui").
+								Text(soundIcon),
+						),
+				),
 				app.Li().Body(
 					app.Span().Style("margin-right", "8px").Text(State.Player.Name),
 					app.Img().
