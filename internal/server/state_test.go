@@ -188,3 +188,78 @@ func TestTableWebsocket(t *testing.T) {
 		}
 	}
 }
+
+func TestHandleTestGame(t *testing.T) {
+	s := NewServerState()
+
+	req, err := http.NewRequest("GET", "/test/game", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(s.HandleTestGame)
+
+	handler.ServeHTTP(rr, req)
+
+	// Check the status code is what we expect (Redirect to table).
+	if status := rr.Code; status != http.StatusSeeOther {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusSeeOther)
+	}
+
+	// Check if the redirect location is correct
+	location := rr.Header().Get("Location")
+	if location != "/table/ThreeStooges" {
+		t.Errorf("handler returned wrong redirect location: got %v want %v",
+			location, "/table/ThreeStooges")
+	}
+
+	// Verify cookie is set
+	cookies := rr.Result().Cookies()
+	var playerCookie *http.Cookie
+	for _, c := range cookies {
+		if c.Name == "gospot_player" {
+			playerCookie = c
+			break
+		}
+	}
+	if playerCookie == nil {
+		t.Fatalf("Expected gospot_player cookie to be set")
+	}
+
+	// Verify server state
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	table, exists := s.Tables["ThreeStooges"]
+	if !exists {
+		t.Fatalf("Table ThreeStooges was not created in server state")
+	}
+
+	if table.Name != "ThreeStooges" {
+		t.Errorf("Expected table name 'ThreeStooges', got '%s'", table.Name)
+	}
+
+	if len(table.Players) != 3 {
+		t.Errorf("Expected 3 players, got %d", len(table.Players))
+	}
+
+	if !table.Started {
+		t.Errorf("Expected game to be started")
+	}
+
+	if len(table.TargetCard) == 0 {
+		t.Errorf("Expected target card to be dealt")
+	}
+
+	playerNames := map[string]bool{"Moe": true, "Larry": true, "Curly": true}
+	for _, p := range table.Players {
+		if !playerNames[p.Name] {
+			t.Errorf("Unexpected player name: %s", p.Name)
+		}
+		if len(p.Hand) == 0 {
+			t.Errorf("Expected player %s to have cards dealt", p.Name)
+		}
+	}
+}

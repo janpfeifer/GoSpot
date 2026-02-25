@@ -2,8 +2,11 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -134,6 +137,9 @@ func (s *ServerState) joinTable(tableID string, player *game.Player, conn *webso
 	s.TableClients[tableID][conn] = player.ID
 
 	s.broadcastStateLocked(tableID)
+	if table.Started {
+		s.broadcastUpdateLocked(tableID)
+	}
 	return table
 }
 
@@ -301,4 +307,60 @@ func (s *ServerState) broadcastStateLocked(tableID string) {
 			_ = wsjson.Write(ctx, c, tm)
 		}(conn, stateMsg)
 	}
+}
+
+// HandleTestGame sets up a test game with 3 players (Moe, Larry, Curly) and redirects to the table.
+func (s *ServerState) HandleTestGame(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tableID := "ThreeStooges"
+	klog.Infof("HandleTestGame: Setting up test game on table %s", tableID)
+
+	table := &game.Table{
+		ID:      tableID,
+		Name:    tableID,
+		Players: make([]*game.Player, 0, 3),
+	}
+	s.Tables[tableID] = table
+
+	// Reset any existing connections to prevent accumulated bugs across tests
+	s.TableClients[tableID] = make(map[*websocket.Conn]string)
+
+	symbols := rand.Perm(57) // Assuming up to 57 symbols
+
+	moe := &game.Player{ID: "moe", Name: "Moe", Symbol: symbols[0]}
+	larry := &game.Player{ID: "larry", Name: "Larry", Symbol: symbols[1]}
+	curly := &game.Player{ID: "curly", Name: "Curly", Symbol: symbols[2]}
+
+	table.Players = append(table.Players, moe, larry, curly)
+
+	// Start game
+	deck := game.GenerateStandardDeck()
+	deck.Shuffle()
+
+	table.TargetCard = deck[0]
+	deck = deck[1:]
+
+	numPlayers := len(table.Players)
+	cardsPerPlayer := len(deck) / numPlayers
+	for i, p := range table.Players {
+		p.Hand = deck[i*cardsPerPlayer : (i+1)*cardsPerPlayer]
+		p.Score = len(p.Hand)
+	}
+	table.Started = true
+
+	// Set cookie for Moe
+	moeJSON, err := json.Marshal(moe)
+	if err == nil {
+		http.SetCookie(w, &http.Cookie{
+			Name:  "gospot_player",
+			Value: url.QueryEscape(string(moeJSON)),
+			Path:  "/",
+		})
+	} else {
+		klog.Errorf("HandleTestGame: Failed to marshal Moe: %v", err)
+	}
+
+	http.Redirect(w, r, "/table/"+tableID, http.StatusSeeOther)
 }

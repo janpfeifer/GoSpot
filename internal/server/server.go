@@ -70,6 +70,10 @@ func Run(ctx context.Context, addr string, started chan<- string) error {
 	// Register WebSocket endpoint
 	mux.HandleFunc("/ws", serverState.HandleWS)
 
+	// Register test game endpoint
+	mux.HandleFunc("/test/game", serverState.HandleTestGame)
+	mux.HandleFunc("/test/game/", serverState.HandleTestGame)
+
 	// Serve the go-app UI
 	// We want to serve /web for static files
 	mux.Handle("/web/", http.StripPrefix("/web/", http.FileServer(http.Dir("web/"))))
