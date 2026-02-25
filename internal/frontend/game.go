@@ -107,6 +107,14 @@ func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf(`<svg width="%d" height="%d" viewBox="0 0 %d %d" class="card-svg">`, size, size, size, size))
 
+	if isClickable {
+		sb.WriteString(`<style>
+			.symbol-group { cursor: pointer; }
+			.symbol-ring { opacity: 0; transition: opacity 0.2s ease-in-out; }
+			.symbol-group:hover .symbol-ring { opacity: 1; }
+		</style>`)
+	}
+
 	// Card background image
 	sb.WriteString(fmt.Sprintf(`<image href="/web/images/card_background.png" x="0" y="0" width="%d" height="%d" />`, size, size))
 
@@ -116,23 +124,26 @@ func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 		x := center + innerRadius*0.70*math.Cos(angle) - symbolSize/2
 		y := center + innerRadius*0.70*math.Sin(angle) - symbolSize/2
 
-		cursorStyle := ""
 		if isClickable {
-			// Add a ring around the symbol to indicate it is clickable
+			sb.WriteString(`<g class="symbol-group">`)
+			// Add a blurred ring around the symbol to indicate it is clickable on hover
 			cx := x + symbolSize/2
 			cy := y + symbolSize/2
 			ringRadius := symbolSize * 0.45 // smaller ring
 			sb.WriteString(fmt.Sprintf(
-				`<circle cx="%f" cy="%f" r="%f" fill="none" stroke="var(--pico-primary)" stroke-width="1" style="cursor: pointer;" />`,
+				`<circle class="symbol-ring" cx="%f" cy="%f" r="%f" fill="none" stroke="var(--pico-primary-hover)" stroke-width="6" filter="blur(3px)" />`,
 				cx, cy, ringRadius,
 			))
-			cursorStyle = ` style="cursor: pointer;"`
 		}
 
 		sb.WriteString(fmt.Sprintf(
-			`<image href="/web/images/symbol_%02d.png" x="%f" y="%f" width="%f" height="%f"%s />`,
-			s, x, y, symbolSize, symbolSize, cursorStyle,
+			`<image href="/web/images/symbol_%02d.png" x="%f" y="%f" width="%f" height="%f" />`,
+			s, x, y, symbolSize, symbolSize,
 		))
+
+		if isClickable {
+			sb.WriteString(`</g>`)
+		}
 	}
 	sb.WriteString(`</svg>`)
 
