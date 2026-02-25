@@ -105,7 +105,7 @@ func (l *Login) Render() app.UI {
 		imgSrc := fmt.Sprintf("/web/images/symbol_%02d.png", i)
 		style := "width: 48px; height: 48px; cursor: pointer; border-radius: 50%; padding: 4px;"
 		if State.SymbolID == i {
-			style += " background-color: var(--primary); border: 2px solid var(--primary-hover);"
+			style += " background-color: var(--pico-primary); border: 2px solid var(--pico-primary-hover);"
 		} else {
 			style += " border: 2px solid transparent;"
 		}
@@ -159,14 +159,29 @@ func (l *Login) Render() app.UI {
 			errorUI,
 			app.Form().OnSubmit(l.onLogin).Body(
 				app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "1rem").Style("margin-bottom", "1rem").Body(
-					app.Img().
-						Src(selectedSymbolImg).
-						Style("width", "64px").
-						Style("height", "64px").
-						Style("border-radius", "50%").
-						Style("border", "2px solid var(--primary)").
+					app.Div().
+						Style("position", "relative").
 						Style("cursor", "pointer").
-						OnClick(l.toggleSymbols),
+						OnClick(l.toggleSymbols).
+						Body(
+							app.Img().
+								Src(selectedSymbolImg).
+								Style("width", "64px").
+								Style("height", "64px").
+								Style("border-radius", "50%").
+								Style("border", "2px solid var(--pico-primary)"),
+							// Affordance triangle (bottom-left)
+							app.Div().
+								Style("position", "absolute").
+								Style("bottom", "0").
+								Style("left", "0").
+								Style("width", "8px").
+								Style("height", "8px").
+								Style("background-color", "var(--pico-primary)").
+								Style("border", "1px solid var(--pico-primary)").
+								Style("clip-path", "polygon(0 0, 0 100%, 100% 100%)").
+								Style("z-index", "10"),
+						),
 					app.Input().
 						Type("text").
 						ID("name").
