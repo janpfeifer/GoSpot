@@ -72,7 +72,7 @@ home page a form to name and create a new table is offered.
 * Each player sees the symbols of the card in the middle and the symbols of their top card.
 * Each player has to click as quickly as possible on the symbol in their card matching any symbol on the card on the table:
   * The first player to find and click on the matching symbol discards their top card: the top card becomes the new "target" card for everyone.
-  * The game works in cycles of 200ms (configurable): if there are ties in the time window (more than one player that clicked on a matching symbol), a random player (among those that clicked on a matching symbol) is picked as the "round winner", and discard its card.
+  * The game keeps tabs on the average round-trip latency from the server to client and back. The time of a click is discounted of half that time, to make it fair for players connected with larger delay -- the game is meant to be played by folks on different continents, so the latency can be significant. And before we process any click, we have to wait enough time to make sure no click will come from any player that could be considered ahead.
   * If a player clicks on a non-matching symbol, there is a 2s penalty (configurable): during this time their clicks are ignored.
   * If the player that won the round clicked on the image that matches the symbol chosen for their player, they instead discard 3 cards at once! The 3rd card is then chosen as the new target.
 * The first player to reach 0 cards win. But the game continues until only one player is left.
