@@ -20,6 +20,11 @@ type Table struct {
 	onUpdate func()
 }
 
+func (t *Table) OnAppUpdate(ctx app.Context) {
+	klog.Infof("Table component: App update available, reloading...")
+	ctx.Reload()
+}
+
 func (t *Table) OnMount(ctx app.Context) {
 	klog.Infof("Table component: OnMount called")
 	t.State = State.Table

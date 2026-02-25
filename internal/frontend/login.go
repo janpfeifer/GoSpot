@@ -18,6 +18,11 @@ type Login struct {
 	ErrorMessage string
 }
 
+func (l *Login) OnAppUpdate(ctx app.Context) {
+	klog.Infof("Login component: App update available, reloading...")
+	ctx.Reload()
+}
+
 func (l *Login) OnMount(ctx app.Context) {
 	klog.V(1).Infof("Login: OnMount called")
 	l.parseReturnURL()

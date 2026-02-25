@@ -66,6 +66,11 @@ func (h *Home) onToggleSound(ctx app.Context, e app.Event) {
 	State.ToggleSound()
 }
 
+func (h *Home) OnAppUpdate(ctx app.Context) {
+	klog.Infof("Home component: App update available, reloading...")
+	ctx.Reload()
+}
+
 func (h *Home) Render() app.UI {
 	if State.Player == nil || State.Player.ID == "" {
 		// Render login instead

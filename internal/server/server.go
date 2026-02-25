@@ -51,8 +51,9 @@ func Run(ctx context.Context, addr string, started chan<- string) error {
 
 	mux := http.NewServeMux()
 
-	// Register app.wasm explicitly since it's in /web/
-	mux.HandleFunc("/app.wasm", func(w http.ResponseWriter, r *http.Request) {
+	// Register /web/app.wasm explicitly to bypass the FileServer catch-all
+	mux.HandleFunc("/web/app.wasm", func(w http.ResponseWriter, r *http.Request) {
+		klog.Infof("Serving app.wasm")
 		http.ServeFile(w, r, "web/app.wasm")
 	})
 

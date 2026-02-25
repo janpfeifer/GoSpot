@@ -21,6 +21,11 @@ type Game struct {
 	onUpdate func()
 }
 
+func (g *Game) OnAppUpdate(ctx app.Context) {
+	klog.Infof("Game component: App update available, not reloading not to interrupt the game...")
+	//ctx.Reload()
+}
+
 func (g *Game) OnMount(ctx app.Context) {
 	klog.Infof("Game component: OnMount called")
 	g.State = State.Table
@@ -141,7 +146,7 @@ func (g *Game) renderPlayerList(players []*game.Player) app.UI {
 			app.Img().
 				Src(fmt.Sprintf("/web/images/symbol_%02d.png", p.Symbol)).
 				Style("width", "32px").Style("height", "32px"),
-			app.Span().Text(fmt.Sprintf("%s: %d cards left", p.Name, p.Score)),
+			app.Span().Text(fmt.Sprintf("%s: %d cards left ...", p.Name, p.Score)),
 		))
 	}
 	return app.Ul().Class("player-list-game").Body(listItems...)

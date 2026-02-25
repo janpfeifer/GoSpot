@@ -9,9 +9,11 @@ import (
 	"github.com/janpfeifer/GoSpot/internal/server"
 )
 
+var (
+	flagAddr = flag.String("addr", "", "Address to listen on (default: auto-port on localhost)")
+)
+
 func main() {
-	var addr string
-	flag.StringVar(&addr, "addr", "", "Address to listen on (default: auto-port on localhost)")
 	flag.Parse()
 
 	started := make(chan string, 1)
@@ -22,7 +24,7 @@ func main() {
 		fmt.Printf("GoSpot server listening on http://%s\n", actualAddr)
 	}()
 
-	if err := server.Run(ctx, addr, started); err != nil {
+	if err := server.Run(ctx, *flagAddr, started); err != nil {
 		log.Fatal(err)
 	}
 }
