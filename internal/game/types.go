@@ -1,5 +1,10 @@
 package game
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // Player represents a user in the lobby or game.
 type Player struct {
 	ID        string `json:"id"`
@@ -30,22 +35,61 @@ const (
 
 // WsMessage represents a WebSocket message.
 type WsMessage struct {
-	Type    MessageType `json:"type"`
-	Payload interface{} `json:"payload,omitempty"`
+	Type    MessageType     `json:"type"`
+	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
-// JoinPayload is the payload for MsgTypeJoin
-type JoinPayload struct {
+// NewWsMessage creates a new WsMessage with a marshaled payload.
+func NewWsMessage(msgType MessageType, payload interface{}) (WsMessage, error) {
+	if payload == nil {
+		return WsMessage{Type: msgType}, nil
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return WsMessage{}, fmt.Errorf("failed to marshal payload: %w", err)
+	}
+	return WsMessage{
+		Type:    msgType,
+		Payload: payloadBytes,
+	}, nil
+}
+
+// Parse unmarshals the message payload into one of the message types (JoinMessage, StateMessage, etc.)
+func (m *WsMessage) Parse() (any, error) {
+	var target any
+	switch m.Type {
+	case MsgTypeJoin:
+		target = &JoinMessage{}
+	case MsgTypeState:
+		target = &StateMessage{}
+	case MsgTypeStart:
+		return nil, nil // Start message has no payload
+	case MsgTypeError:
+		target = &ErrorMessage{}
+	default:
+		return nil, fmt.Errorf("unknown message type: %s", m.Type)
+	}
+
+	if len(m.Payload) == 0 {
+		return target, nil
+	}
+
+	err := json.Unmarshal(m.Payload, target)
+	return target, err
+}
+
+// JoinMessage is the payload for MsgTypeJoin
+type JoinMessage struct {
 	TableID string `json:"table_id"`
 	Player  Player `json:"player"`
 }
 
-// StatePayload is the payload for MsgTypeState
-type StatePayload struct {
+// StateMessage is the payload for MsgTypeState
+type StateMessage struct {
 	Table Table `json:"table"`
 }
 
-// ErrorPayload is the payload for MsgTypeError
-type ErrorPayload struct {
+// ErrorMessage is the payload for MsgTypeError
+type ErrorMessage struct {
 	Message string `json:"message"`
 }

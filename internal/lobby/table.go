@@ -6,6 +6,7 @@ import (
 
 	"github.com/janpfeifer/GoSpot/internal/game"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
+	"k8s.io/klog/v2"
 )
 
 // Table represents the lobby for a specific game room
@@ -14,9 +15,31 @@ type Table struct {
 	TableID string
 	State   *game.Table
 	Error   string
+
+	onUpdate func()
+}
+
+func (t *Table) OnMount(ctx app.Context) {
+	klog.Infof("Table component: OnMount called")
+	t.State = State.Table
+	t.onUpdate = func() {
+		klog.Infof("Table component: Notify received")
+		ctx.Dispatch(func(ctx app.Context) {
+			t.State = State.Table
+			klog.Infof("Table component: State updated. Player count: %d", len(t.State.Players))
+		})
+	}
+	State.Listeners["table"] = t.onUpdate
+}
+
+func (t *Table) OnDismount() {
+	klog.Infof("Table component: OnDismount called")
+	delete(State.Listeners, "table")
 }
 
 func (t *Table) OnNav(ctx app.Context) {
+	klog.Infof("Table component: OnNav called")
+	t.State = State.Table
 	// Check auth
 	if State.Player == nil || State.Player.ID == "" {
 		app.Window().Get("location").Set("href", "/?return="+app.Window().URL().Path)
@@ -24,23 +47,24 @@ func (t *Table) OnNav(ctx app.Context) {
 	}
 
 	path := app.Window().URL().Path
-	parts := strings.Split(path, "/")
-	if len(parts) >= 3 {
-		t.TableID = parts[2]
+	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	klog.Infof("Table component: Navigated to %s, parts: %v", path, parts)
+	if len(parts) >= 2 && parts[0] == "table" {
+		t.TableID = parts[1]
 	}
 
+	if t.TableID == "" {
+		t.Error = "No Table ID provided"
+		klog.Errorf("Table component: Error: %s", t.Error)
+		return
+	}
+
+	klog.Infof("Table component: Connecting to table ID: %s", t.TableID)
 	// Connect to WS
 	if err := State.ConnectWS(t.TableID); err != nil {
 		t.Error = fmt.Sprintf("Failed to connect to table: %v", err)
+		klog.Errorf("Table component: Error connecting: %v", err)
 	}
-
-	// Wait for event to rewrite State.Table
-	app.Window().Call("addEventListener", "table_update", app.FuncOf(func(this app.Value, args []app.Value) interface{} {
-		ctx.Dispatch(func(ctx app.Context) {
-			t.State = State.Table
-		})
-		return nil
-	}))
 }
 
 func (t *Table) onCopyURL(ctx app.Context, e app.Event) {

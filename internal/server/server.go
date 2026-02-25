@@ -40,7 +40,7 @@ func Run(ctx context.Context, addr string, started chan<- string) error {
 
 	// The web assets and the compiled webassembly
 	// are served natively by the go-app framework
-	h := &app.Handler{
+	defaultHandler := &app.Handler{
 		Name:        "GoSpot",
 		Description: "A real-time matching game",
 		Styles: []string{
@@ -50,6 +50,11 @@ func Run(ctx context.Context, addr string, started chan<- string) error {
 	}
 
 	mux := http.NewServeMux()
+
+	// Register app.wasm explicitly since it's in /web/
+	mux.HandleFunc("/app.wasm", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "web/app.wasm")
+	})
 
 	// Register logout handler
 	mux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +73,7 @@ func Run(ctx context.Context, addr string, started chan<- string) error {
 	// Serve the go-app UI
 	// We want to serve /web for static files
 	mux.Handle("/web/", http.StripPrefix("/web/", http.FileServer(http.Dir("web/"))))
-	mux.Handle("/", h)
+	mux.Handle("/", defaultHandler)
 
 	srv := &http.Server{
 		Handler: mux,
