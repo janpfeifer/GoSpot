@@ -1,7 +1,7 @@
 
 
 <div align="center">
-  <img src="web/images/banner.jpg" alt="GoSpot Banner" style="height: 8em;" />
+  <img src="https://raw.githubusercontent.com/janpfeifer/GoSpot/main/web/images/banner.png" alt="GoSpot Banner" style="height: 8em; border-radius: 8px;" />
 </div>
 
 # GoSpot
