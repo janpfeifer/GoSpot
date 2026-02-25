@@ -106,20 +106,36 @@ func (t *Table) Render() app.UI {
 	} else {
 		// Render Lobby
 		var playersList []app.UI
-		for _, p := range t.State.Players {
+		for i, p := range t.State.Players {
+			name := p.Name
+			if i == 0 {
+				name += " (Creator)"
+			}
 			playersList = append(playersList, app.Li().Body(
 				app.Img().
 					Src(fmt.Sprintf("/web/images/symbol_%02d.png", p.Symbol)).
 					Style("width", "32px").Style("height", "32px").Style("vertical-align", "middle").Style("margin-right", "8px"),
-				app.Span().Text(p.Name),
+				app.Span().Text(name),
 			))
 		}
 
+		isCreator := len(t.State.Players) > 0 && t.State.Players[0].ID == State.Player.ID
 		canStart := len(t.State.Players) >= 2
 
-		var waitingMsg app.UI = app.Text("")
-		if !canStart {
-			waitingMsg = app.P().Class("ins").Text("Waiting for at least 2 players to start...")
+		var footer app.UI
+		if isCreator {
+			var waitingMsg app.UI = app.Text("")
+			if !canStart {
+				waitingMsg = app.P().Class("ins").Text("Waiting for at least 2 players to start...")
+			}
+			footer = app.Footer().Body(
+				app.Button().Text("Start Game").Disabled(!canStart).OnClick(t.onStart),
+				waitingMsg,
+			)
+		} else {
+			footer = app.Footer().Body(
+				app.P().Text("Waiting for the creator to start the game..."),
+			)
 		}
 
 		content = app.Div().Body(
@@ -136,10 +152,7 @@ func (t *Table) Render() app.UI {
 			app.Article().Body(
 				app.Header().Text(fmt.Sprintf("Players (%d)", len(t.State.Players))),
 				app.Ul().Body(playersList...),
-				app.Footer().Body(
-					app.Button().Text("Start Game").Disabled(!canStart).OnClick(t.onStart),
-					waitingMsg,
-				),
+				footer,
 			),
 		)
 	}

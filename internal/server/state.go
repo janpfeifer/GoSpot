@@ -106,14 +106,25 @@ func (s *ServerState) joinTable(tableID string, player *game.Player, conn *webso
 		table = &game.Table{
 			ID:      tableID,
 			Name:    tableID, // Client can optionally rename later
-			Players: make(map[string]*game.Player),
+			Players: make([]*game.Player, 0),
 		}
 		s.Tables[tableID] = table
 		s.TableClients[tableID] = make(map[*websocket.Conn]string)
 	}
 
 	klog.Infof("joinTable: Adding player %s to table %s", player.Name, tableID)
-	table.Players[player.ID] = player
+
+	// Check if already in
+	found := false
+	for _, p := range table.Players {
+		if p.ID == player.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		table.Players = append(table.Players, player)
+	}
 	s.TableClients[tableID][conn] = player.ID
 
 	s.broadcastStateLocked(tableID)
@@ -134,7 +145,14 @@ func (s *ServerState) leaveTable(tableID string, conn *websocket.Conn) {
 		delete(clients, conn)
 		table := s.Tables[tableID]
 		if table != nil {
-			delete(table.Players, playerID)
+			// Remove from players slice
+			for i, p := range table.Players {
+				if p.ID == playerID {
+					table.Players = append(table.Players[:i], table.Players[i+1:]...)
+					break
+				}
+			}
+
 			// If table is empty, we could delete it, but memory is small
 			if len(table.Players) == 0 {
 				delete(s.Tables, tableID)
@@ -152,7 +170,8 @@ func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table
 
 	switch msg.Type {
 	case game.MsgTypeStart:
-		if len(table.Players) >= 2 {
+		// Only creator (first player) can start
+		if len(table.Players) >= 2 && table.Players[0].ID == player.ID {
 			table.Started = true
 			s.broadcastStateLocked(table.ID)
 		}

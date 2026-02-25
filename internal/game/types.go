@@ -16,10 +16,10 @@ type Player struct {
 
 // Table represents a game room.
 type Table struct {
-	ID      string             `json:"id"`
-	Name    string             `json:"name"`
-	Players map[string]*Player `json:"players"` // Players currently at the table
-	Started bool               `json:"started"` // True if game has started
+	ID      string    `json:"id"`
+	Name    string    `json:"name"`
+	Players []*Player `json:"players"` // Players currently at the table
+	Started bool      `json:"started"` // True if game has started
 }
 
 // Message type for WebSocket communication between client and server.
