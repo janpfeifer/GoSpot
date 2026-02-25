@@ -27,7 +27,12 @@ func (t *Table) OnMount(ctx app.Context) {
 		klog.Infof("Table component: Notify received")
 		ctx.Dispatch(func(ctx app.Context) {
 			t.State = State.Table
-			klog.Infof("Table component: State updated. Player count: %d", len(t.State.Players))
+			t.Error = State.Error
+			if t.State != nil {
+				klog.Infof("Table component: State updated. Player count: %d", len(t.State.Players))
+			} else if t.Error != "" {
+				klog.Infof("Table component: Error received. Error: %s", t.Error)
+			}
 		})
 	}
 	State.Listeners["table"] = t.onUpdate
@@ -78,6 +83,11 @@ func (t *Table) onStart(ctx app.Context, e app.Event) {
 	State.SendStart()
 }
 
+func (t *Table) onCancel(ctx app.Context, e app.Event) {
+	State.SendCancel()
+	ctx.Navigate("/")
+}
+
 func (t *Table) Render() app.UI {
 	if State.Player == nil || State.Player.ID == "" {
 		return app.Main().Class("container").Body(
@@ -88,9 +98,10 @@ func (t *Table) Render() app.UI {
 	if t.Error != "" {
 		return app.Main().Class("container").Body(
 			app.Article().Body(
-				app.H2().Text("Error"),
+				app.H2().Text("Table Closed"),
 				app.P().Style("color", "red").Text(t.Error),
 				app.A().Href("#").OnClick(func(ctx app.Context, e app.Event) {
+					State.Error = ""
 					ctx.Navigate("/")
 				}).Text("Return to Home"),
 			),
@@ -126,11 +137,24 @@ func (t *Table) Render() app.UI {
 		if isCreator {
 			var waitingMsg app.UI = app.Text("")
 			if !canStart {
-				waitingMsg = app.P().Class("ins").Text("Waiting for at least 2 players to start...")
+				waitingMsg = app.P().Class("ins").Style("text-align", "center").Text("Waiting for at least 2 players to start...")
 			}
 			footer = app.Footer().Body(
-				app.Button().Text("Start Game").Disabled(!canStart).OnClick(t.onStart),
 				waitingMsg,
+				app.Div().Style("display", "flex").Style("gap", "1rem").Style("justify-content", "center").Body(
+					app.Button().
+						Text("Start Game").
+						Disabled(!canStart).
+						OnClick(t.onStart).
+						Style("flex", "1").
+						Style("margin-bottom", "0"),
+					app.Button().
+						Class("outline contrast").
+						Text("Cancel Table").
+						OnClick(t.onCancel).
+						Style("flex", "1").
+						Style("margin-bottom", "0"),
+				),
 			)
 		} else {
 			footer = app.Footer().Body(

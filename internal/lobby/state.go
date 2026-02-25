@@ -17,6 +17,7 @@ import (
 type GlobalClientState struct {
 	Player *game.Player
 	Table  *game.Table
+	Error  string
 	Conn   *websocket.Conn
 
 	// Login State (persistent across re-renders)
@@ -131,6 +132,24 @@ func (s *GlobalClientState) handleMessage(msg game.WsMessage) {
 
 		klog.Infof("handleMessage: State updated. Players: %d", len(stateMsg.Table.Players))
 		State.Table = &stateMsg.Table
+		State.Error = ""
+		s.Notify()
+
+	case game.MsgTypeError:
+		p, err := msg.Parse()
+		if err != nil {
+			klog.Errorf("handleMessage: Failed to parse error message: %v", err)
+			return
+		}
+		errMsg, ok := p.(*game.ErrorMessage)
+		if !ok {
+			klog.Errorf("handleMessage: Expected ErrorMessage, got: %T", p)
+			return
+		}
+
+		klog.Infof("handleMessage: Error received: %s", errMsg.Message)
+		State.Error = errMsg.Message
+		State.Table = nil
 		s.Notify()
 	}
 }
@@ -145,5 +164,22 @@ func (s *GlobalClientState) SendStart() {
 		klog.Errorf("SendStart: Failed to create start message: %v", err)
 		return
 	}
-	wsjson.Write(context.Background(), s.Conn, msg)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+	wsjson.Write(ctx, s.Conn, msg)
+}
+
+// SendCancel sends a cancel message to the server
+func (s *GlobalClientState) SendCancel() {
+	if s.Conn == nil {
+		return
+	}
+	msg, err := game.NewWsMessage(game.MsgTypeCancel, nil)
+	if err != nil {
+		klog.Errorf("SendCancel: Failed to create cancel message: %v", err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+	wsjson.Write(ctx, s.Conn, msg)
 }

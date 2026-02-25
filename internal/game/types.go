@@ -26,11 +26,12 @@ type Table struct {
 type MessageType string
 
 const (
-	MsgTypeJoin  MessageType = "join"  // Client wants to join a table
-	MsgTypeState MessageType = "state" // Server sends full table state
-	MsgTypeStart MessageType = "start" // Client wants to start the game
-	MsgTypeError MessageType = "error" // Server sends an error message
-	MsgTypeChat  MessageType = "chat"  // (Optional) simple chat
+	MsgTypeJoin   MessageType = "join"   // Client wants to join a table
+	MsgTypeState  MessageType = "state"  // Server sends full table state
+	MsgTypeStart  MessageType = "start"  // Client wants to start the game
+	MsgTypeCancel MessageType = "cancel" // Client (creator) wants to cancel/destroy the table
+	MsgTypeError  MessageType = "error"  // Server sends an error message
+	MsgTypeChat   MessageType = "chat"   // (Optional) simple chat
 )
 
 // WsMessage represents a WebSocket message.
@@ -62,8 +63,8 @@ func (m *WsMessage) Parse() (any, error) {
 		target = &JoinMessage{}
 	case MsgTypeState:
 		target = &StateMessage{}
-	case MsgTypeStart:
-		return nil, nil // Start message has no payload
+	case MsgTypeStart, MsgTypeCancel:
+		return nil, nil // These messages have no payload
 	case MsgTypeError:
 		target = &ErrorMessage{}
 	default:

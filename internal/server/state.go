@@ -175,6 +175,26 @@ func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table
 			table.Started = true
 			s.broadcastStateLocked(table.ID)
 		}
+	case game.MsgTypeCancel:
+		// Only creator (first player) can cancel
+		if len(table.Players) > 0 && table.Players[0].ID == player.ID {
+			klog.Infof("tableHandleMessage: Creator %s cancelled table %s", player.Name, table.ID)
+			// Notify everyone
+			errorMsg, _ := game.NewWsMessage(game.MsgTypeError, game.ErrorMessage{
+				Message: "Table was cancelled by creator.",
+			})
+			for c := range s.TableClients[table.ID] {
+				go func(conn *websocket.Conn) {
+					ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+					defer cancel()
+					_ = wsjson.Write(ctx, conn, errorMsg)
+					_ = conn.Close(websocket.StatusNormalClosure, "Table cancelled")
+				}(c)
+			}
+			// Cleanup table
+			delete(s.Tables, table.ID)
+			delete(s.TableClients, table.ID)
+		}
 	}
 }
 
