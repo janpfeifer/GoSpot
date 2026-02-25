@@ -20,14 +20,7 @@ type Login struct {
 
 func (l *Login) OnMount(ctx app.Context) {
 	klog.V(1).Infof("Login: OnMount called")
-	// Parse URL to find the return path, if any
-	u, err := url.Parse(app.Window().URL().String())
-	if err == nil {
-		q := u.Query()
-		if returnURL := q.Get("return"); returnURL != "" {
-			l.ReturnURL = returnURL
-		}
-	}
+	l.parseReturnURL()
 
 	// Read cookie to see if already logged in
 	playerStr := getCookie("gospot_player")
@@ -39,6 +32,19 @@ func (l *Login) OnMount(ctx app.Context) {
 			return
 		}
 	}
+}
+
+func (l *Login) OnNav(ctx app.Context) {
+	klog.V(1).Infof("Login: OnNav called")
+	l.parseReturnURL()
+}
+
+func (l *Login) parseReturnURL() {
+	// Parse URL to find the return path, if any
+	u := app.Window().URL()
+	q := u.Query()
+	l.ReturnURL = q.Get("return")
+	klog.V(1).Infof("Login: parseReturnURL URL=%s, ReturnURL=%s", u.String(), l.ReturnURL)
 }
 
 func (l *Login) redirect(ctx app.Context) {

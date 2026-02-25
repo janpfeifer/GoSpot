@@ -2,6 +2,7 @@ package lobby
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/janpfeifer/GoSpot/internal/game"
@@ -42,7 +43,7 @@ func (t *Table) OnNav(ctx app.Context) {
 	t.State = State.Table
 	// Check auth
 	if State.Player == nil || State.Player.ID == "" {
-		ctx.Navigate("/?return=" + app.Window().URL().Path)
+		ctx.Navigate("/?return=" + url.QueryEscape(app.Window().URL().Path))
 		return
 	}
 
@@ -79,7 +80,9 @@ func (t *Table) onStart(ctx app.Context, e app.Event) {
 
 func (t *Table) Render() app.UI {
 	if State.Player == nil || State.Player.ID == "" {
-		return &Login{} // Or basic loading
+		return app.Main().Class("container").Body(
+			app.Div().Aria("busy", "true").Text("Redirecting to login..."),
+		)
 	}
 
 	if t.Error != "" {

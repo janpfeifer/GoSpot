@@ -23,9 +23,8 @@ func (h *Home) OnMount(ctx app.Context) {
 
 func (h *Home) OnNav(ctx app.Context) {
 	klog.V(1).Infof("Home: OnNav called, Path=%s", app.Window().URL().Path)
-	if State.Player == nil || State.Player.ID == "" {
-		// Not logged in, redirect to login via Login component logic
-		// We'll actually render the login page in the Home route if not logged in
+	if h.login != nil {
+		h.login.OnNav(ctx)
 	}
 }
 
