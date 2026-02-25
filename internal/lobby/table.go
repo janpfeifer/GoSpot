@@ -147,9 +147,17 @@ func (t *Table) Render() app.UI {
 	return app.Main().Class("container").Body(
 		app.Nav().Body(
 			app.Ul().Body(
-				app.Li().Body(app.Strong().Text("GoSpot").Style("cursor", "pointer").OnClick(func(ctx app.Context, e app.Event) {
-					ctx.Navigate("/")
-				})),
+				app.Li().Body(
+					app.Img().
+						Src("/web/images/banner.png").
+						Style("height", "2rem").
+						Style("vertical-align", "middle").
+						Style("cursor", "pointer").
+						Style("border-radius", "8px").
+						OnClick(func(ctx app.Context, e app.Event) {
+							ctx.Navigate("/")
+						}),
+				),
 			),
 			app.Ul().Body(
 				app.Li().Body(

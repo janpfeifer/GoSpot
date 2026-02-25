@@ -63,7 +63,13 @@ func (h *Home) Render() app.UI {
 	return app.Main().Class("container").Body(
 		app.Nav().Body(
 			app.Ul().Body(
-				app.Li().Body(app.Strong().Text("GoSpot")),
+				app.Li().Body(
+					app.Img().
+						Src("/web/images/banner.png").
+						Style("height", "2rem").
+						Style("vertical-align", "middle").
+						Style("border-radius", "8px"),
+				),
 			),
 			app.Ul().Body(
 				app.Li().Body(
