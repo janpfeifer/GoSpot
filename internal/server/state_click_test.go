@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"net"
-	"net/http"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -43,34 +42,21 @@ func TestLatencyCompensationClick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+		startAddrChan := make(chan *ServerState, 1)
+		go Run(ctx, "", startAddrChan)
+		serverState := <-startAddrChan
+		startAddr := serverState.Address
 
-		s := NewServerState()
-		srv := &http.Server{Handler: http.HandlerFunc(s.HandleWS)}
-		listener := &pipeListener{ch: make(chan net.Conn, 10), done: make(chan struct{})}
-		defer listener.Close()
-		go srv.Serve(listener)
-		defer srv.Close()
+		const tableName = "test_table"
 
-		connectAndJoin := func(playerID, playerName string) *websocket.Conn {
-			opts := &websocket.DialOptions{
-				HTTPClient: &http.Client{
-					Transport: &http.Transport{
-						DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-							cli, srv := net.Pipe()
-							listener.ch <- srv
-							return cli, nil
-						},
-					},
-				},
-			}
-
-			conn, _, err := websocket.Dial(ctx, "http://localhost/ws", opts)
+		connectAndJoin := func(playerID, playerName string, delay time.Duration) *websocket.Conn {
+			conn, _, err := websocket.Dial(ctx, "http://"+startAddr+"/ws", nil)
 			if err != nil {
 				t.Fatalf("Dial error: %v", err)
 			}
 
 			joinMsg, _ := game.NewWsMessage(game.MsgTypeJoin, game.JoinMessage{
-				TableID: "table1",
+				TableID: tableName,
 				Player: game.Player{
 					ID:   playerID,
 					Name: playerName,
@@ -96,13 +82,21 @@ func TestLatencyCompensationClick(t *testing.T) {
 				ServerTime: ping.ServerTime,
 				ClientTime: time.Now().UnixNano(),
 			})
+			if delay > 0 {
+				time.Sleep(delay)
+			}
 			_ = wsjson.Write(ctx, conn, pongMsg)
-
 			return conn
 		}
 
-		conn1 := connectAndJoin("p1", "FastPlayer")
-		conn2 := connectAndJoin("p2", "SlowPlayer")
+		var conn1, conn2 *websocket.Conn
+		go func() {
+			conn1 = connectAndJoin("p1", "FastPlayer", 0)
+		}()
+		go func() {
+			conn2 = connectAndJoin("p2", "SlowPlayer", 50*time.Millisecond)
+		}()
+		synctest.Wait()
 
 		// Drain incoming messages from both connections in background goroutines.
 		// The server sends state broadcasts and pings that must be consumed to
@@ -125,8 +119,8 @@ func TestLatencyCompensationClick(t *testing.T) {
 
 		synctest.Wait()
 
-		s.mu.Lock()
-		table := s.Tables["table1"]
+		serverState.mu.Lock()
+		table := serverState.Tables[tableName]
 		if table == nil {
 			t.Fatalf("Table not found")
 		}
@@ -163,7 +157,7 @@ func TestLatencyCompensationClick(t *testing.T) {
 
 		fastMatch := findMatch(fastPlayer.Hand[0])
 		slowMatch := findMatch(slowPlayer.Hand[0])
-		s.mu.Unlock()
+		serverState.mu.Unlock()
 
 		if fastMatch == -1 || slowMatch == -1 {
 			t.Fatalf("Could not find matching cards")
@@ -188,8 +182,8 @@ func TestLatencyCompensationClick(t *testing.T) {
 		time.Sleep(1 * time.Second)
 		synctest.Wait()
 
-		s.mu.Lock()
-		defer s.mu.Unlock()
+		serverState.mu.Lock()
+		defer serverState.mu.Unlock()
 
 		if table.Round != 2 {
 			t.Fatalf("Expected round to increment to 2, got %d", table.Round)
