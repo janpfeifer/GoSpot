@@ -3,8 +3,6 @@ package server
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -17,11 +15,10 @@ func TestTableWebsocket(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s := NewServerState()
-	server := httptest.NewServer(http.HandlerFunc(s.HandleWS))
-	defer server.Close()
-
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	started := make(chan *ServerState, 1)
+	go Run(ctx, "", started)
+	serverState := <-started
+	wsURL := "ws://" + serverState.Address + "/ws"
 
 	// Helper to connect and join
 	connectAndJoin := func(playerID, playerName string, symbol int, tableID string) (*websocket.Conn, error) {
@@ -190,33 +187,46 @@ func TestTableWebsocket(t *testing.T) {
 }
 
 func TestHandleTestGame(t *testing.T) {
-	s := NewServerState()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	req, err := http.NewRequest("GET", "/test/game", nil)
+	started := make(chan *ServerState, 1)
+	go func() {
+		_ = Run(ctx, "", started)
+	}()
+	s := <-started
+
+	req, err := http.NewRequest("GET", "http://"+s.Address+"/test/game", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(s.HandleTestGame)
-
-	handler.ServeHTTP(rr, req)
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
 
 	// Check the status code is what we expect (Redirect to table).
-	if status := rr.Code; status != http.StatusSeeOther {
+	if status := resp.StatusCode; status != http.StatusSeeOther {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusSeeOther)
 	}
 
 	// Check if the redirect location is correct
-	location := rr.Header().Get("Location")
+	location := resp.Header.Get("Location")
 	if location != "/table/ThreeStooges" {
 		t.Errorf("handler returned wrong redirect location: got %v want %v",
 			location, "/table/ThreeStooges")
 	}
 
 	// Verify cookie is set
-	cookies := rr.Result().Cookies()
+	cookies := resp.Cookies()
 	var playerCookie *http.Cookie
 	for _, c := range cookies {
 		if c.Name == "gospot_player" {
