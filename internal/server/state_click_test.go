@@ -2,7 +2,8 @@ package server
 
 import (
 	"context"
-	"net"
+	"fmt"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -12,91 +13,43 @@ import (
 	"github.com/janpfeifer/GoSpot/internal/game"
 )
 
-// pipeListener serves HTTP connections over net.Pipe
-type pipeListener struct {
-	ch   chan net.Conn
-	done chan struct{}
-}
-
-func (l *pipeListener) Accept() (net.Conn, error) {
-	select {
-	case c := <-l.ch:
-		return c, nil
-	case <-l.done:
-		return nil, net.ErrClosed
-	}
-}
-
-func (l *pipeListener) Close() error {
-	select {
-	case <-l.done:
-	default:
-		close(l.done)
-	}
-	return nil
-}
-
-func (l *pipeListener) Addr() net.Addr { return &net.TCPAddr{} }
-
 func TestLatencyCompensationClick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
+
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		startAddrChan := make(chan *ServerState, 1)
-		go Run(ctx, "", startAddrChan)
+		go Run(ctx, NetPipeAddr, startAddrChan)
 		serverState := <-startAddrChan
 		startAddr := serverState.Address
 
 		const tableName = "test_table"
 
-		connectAndJoin := func(playerID, playerName string, delay time.Duration) *websocket.Conn {
-			conn, _, err := websocket.Dial(ctx, "http://"+startAddr+"/ws", nil)
-			if err != nil {
-				t.Fatalf("Dial error: %v", err)
-			}
-
-			joinMsg, _ := game.NewWsMessage(game.MsgTypeJoin, game.JoinMessage{
-				TableID: tableName,
-				Player: game.Player{
-					ID:   playerID,
-					Name: playerName,
-				},
-			})
-			_ = wsjson.Write(ctx, conn, joinMsg)
-
-			// Read and respond to the initial ping from the server.
-			// This unblocks the server's HandleWS goroutine so it enters its read loop.
-			var pingMsg game.WsMessage
-			if err := wsjson.Read(ctx, conn, &pingMsg); err != nil {
-				t.Fatalf("Failed to read initial ping: %v", err)
-			}
-			if pingMsg.Type != game.MsgTypePing {
-				t.Fatalf("Expected ping message, got %s", pingMsg.Type)
-			}
-			p, err := pingMsg.Parse()
-			if err != nil {
-				t.Fatalf("Failed to parse ping: %v", err)
-			}
-			ping := p.(*game.PingMessage)
-			pongMsg, _ := game.NewWsMessage(game.MsgTypePong, game.PongMessage{
-				ServerTime: ping.ServerTime,
-				ClientTime: time.Now().UnixNano(),
-			})
-			if delay > 0 {
-				time.Sleep(delay)
-			}
-			_ = wsjson.Write(ctx, conn, pongMsg)
-			return conn
-		}
+		wsURL := "ws://" + startAddr + "/ws"
 
 		var conn1, conn2 *websocket.Conn
+		var wg sync.WaitGroup
+		wg.Add(2)
 		go func() {
-			conn1 = connectAndJoin("p1", "FastPlayer", 0)
+			defer wg.Done()
+			conn, err := testConnectAndJoin(ctx, serverState, wsURL, tableName, "p1", "FastPlayer", 0, 0)
+			if err != nil {
+				t.Errorf("FastPlayer failed to join: %v", err)
+			}
+			conn1 = conn
+			fmt.Println("FastPlayer connected")
 		}()
 		go func() {
-			conn2 = connectAndJoin("p2", "SlowPlayer", 50*time.Millisecond)
+			defer wg.Done()
+			conn, err := testConnectAndJoin(ctx, serverState, wsURL, tableName, "p2", "SlowPlayer", 0, 10*time.Millisecond)
+			if err != nil {
+				t.Errorf("SlowPlayer failed to join: %v", err)
+			}
+			conn2 = conn
+			fmt.Println("SlowPlayer connected")
 		}()
-		synctest.Wait()
+		wg.Wait()
+		fmt.Println("Connected")
 
 		// Drain incoming messages from both connections in background goroutines.
 		// The server sends state broadcasts and pings that must be consumed to
@@ -111,13 +64,20 @@ func TestLatencyCompensationClick(t *testing.T) {
 		}
 		go drainConn(conn1)
 		go drainConn(conn2)
-
-		synctest.Wait()
-
 		startMsg, _ := game.NewWsMessage(game.MsgTypeStart, nil)
 		_ = wsjson.Write(ctx, conn1, startMsg)
 
-		synctest.Wait()
+		// Wait for table to start
+		for {
+			serverState.mu.Lock()
+			table := serverState.Tables[tableName]
+			if table != nil && table.Started {
+				serverState.mu.Unlock()
+				break
+			}
+			serverState.mu.Unlock()
+			time.Sleep(1 * time.Millisecond)
+		}
 
 		serverState.mu.Lock()
 		table := serverState.Tables[tableName]
@@ -128,10 +88,10 @@ func TestLatencyCompensationClick(t *testing.T) {
 		var fastPlayer, slowPlayer *game.Player
 		for _, p := range table.Players {
 			if p.ID == "p1" {
-				p.Latency = 10 * time.Millisecond
+				p.Latency = 2 * time.Millisecond
 				fastPlayer = p
 			} else {
-				p.Latency = 500 * time.Millisecond
+				p.Latency = 10 * time.Millisecond
 				slowPlayer = p
 			}
 		}
@@ -169,18 +129,14 @@ func TestLatencyCompensationClick(t *testing.T) {
 		// Fast player clicks first
 		_ = wsjson.Write(ctx, conn1, fastClickMsg)
 
-		// Advance time by 50ms
-		time.Sleep(50 * time.Millisecond)
+		// Advance time by 5ms
+		time.Sleep(5 * time.Millisecond)
 
 		// Slow player clicks
 		_ = wsjson.Write(ctx, conn2, slowClickMsg)
 
-		// Wait for both to be recorded as PendingClick
-		synctest.Wait()
-
 		// Enough time for timer to fire
-		time.Sleep(1 * time.Second)
-		synctest.Wait()
+		time.Sleep(100 * time.Millisecond)
 
 		serverState.mu.Lock()
 		defer serverState.mu.Unlock()
@@ -192,5 +148,6 @@ func TestLatencyCompensationClick(t *testing.T) {
 		if len(slowPlayer.Hand) >= len(fastPlayer.Hand) {
 			t.Fatalf("Slow player should have won, but fast player won. Slow hand len: %d, Fast hand len: %d", len(slowPlayer.Hand), len(fastPlayer.Hand))
 		}
+		synctest.Wait()
 	})
 }

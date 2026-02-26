@@ -11,6 +11,53 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// NetPipeAddr is the special address value that indicates to use net.Pipe() for testing.
+const NetPipeAddr = "netpipe"
+
+type pipeListener struct {
+	conns  chan net.Conn
+	closed chan struct{}
+}
+
+func (l *pipeListener) Accept() (net.Conn, error) {
+	select {
+	case c := <-l.conns:
+		return c, nil
+	case <-l.closed:
+		return nil, net.ErrClosed
+	}
+}
+
+func (l *pipeListener) Close() error {
+	close(l.closed)
+	return nil
+}
+
+func (l *pipeListener) Addr() net.Addr {
+	return pipeAddr{}
+}
+
+type pipeAddr struct{}
+
+func (pipeAddr) Network() string { return "pipe" }
+func (pipeAddr) String() string  { return NetPipeAddr }
+
+func (l *pipeListener) dial() (net.Conn, error) {
+	select {
+	case <-l.closed:
+		return nil, net.ErrClosed
+	default:
+	}
+
+	client, server := net.Pipe()
+	select {
+	case l.conns <- server:
+		return client, nil
+	case <-l.closed:
+		return nil, net.ErrClosed
+	}
+}
+
 // Run starts the server and blocks until the context is canceled.
 // If addr is empty, it listens on an automatic port on the localhost interface.
 // It sends the actual address it's listening on to the started channel if it's not nil.
@@ -19,7 +66,19 @@ func Run(ctx context.Context, addr string, started chan<- *ServerState) error {
 		addr = "127.0.0.1:0"
 	}
 
-	ln, err := net.Listen("tcp", addr)
+	serverState := NewServerState()
+	var ln net.Listener
+	var err error
+	if addr == NetPipeAddr {
+		pl := &pipeListener{
+			conns:  make(chan net.Conn),
+			closed: make(chan struct{}),
+		}
+		serverState.LocalDial = pl.dial
+		ln = pl
+	} else {
+		ln, err = net.Listen("tcp", addr)
+	}
 	if err != nil {
 		return err
 	}
@@ -29,7 +88,6 @@ func Run(ctx context.Context, addr string, started chan<- *ServerState) error {
 	frontend.InitState()
 
 	// Initialize server state
-	serverState := NewServerState()
 	serverState.Address = actualAddr
 	if started != nil {
 		started <- serverState

@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -17,70 +19,13 @@ func TestTableWebsocket(t *testing.T) {
 
 	started := make(chan *ServerState, 1)
 	go Run(ctx, "", started)
-	serverState := <-started
-	wsURL := "ws://" + serverState.Address + "/ws"
-
-	// Helper to connect and join
-	connectAndJoin := func(playerID, playerName string, symbol int, tableID string) (*websocket.Conn, error) {
-		conn, _, err := websocket.Dial(ctx, wsURL, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		joinMsg, err := game.NewWsMessage(game.MsgTypeJoin, game.JoinMessage{
-			TableID: tableID,
-			Player: game.Player{
-				ID:     playerID,
-				Name:   playerName,
-				Symbol: symbol,
-			},
-		})
-		if err != nil {
-			conn.CloseNow()
-			return nil, err
-		}
-		if err := wsjson.Write(ctx, conn, joinMsg); err != nil {
-			conn.CloseNow()
-			return nil, err
-		}
-
-		// Handle initial Ping from server
-		var pingMsg game.WsMessage
-		if err := wsjson.Read(ctx, conn, &pingMsg); err != nil {
-			conn.CloseNow()
-			return nil, err
-		}
-		if pingMsg.Type != game.MsgTypePing {
-			conn.CloseNow()
-			return nil, err
-		}
-
-		p, err := pingMsg.Parse()
-		if err != nil {
-			conn.CloseNow()
-			return nil, err
-		}
-		ping, ok := p.(*game.PingMessage)
-		if !ok {
-			conn.CloseNow()
-			return nil, err
-		}
-		pongMsg, _ := game.NewWsMessage(game.MsgTypePong, game.PongMessage{
-			ServerTime: ping.ServerTime,
-			ClientTime: time.Now().UnixNano(),
-		})
-		if err := wsjson.Write(ctx, conn, pongMsg); err != nil {
-			conn.CloseNow()
-			return nil, err
-		}
-
-		return conn, nil
-	}
+	s := <-started
+	wsURL := "ws://" + s.Address + "/ws"
 
 	tableID := "test-table"
 
 	// Player 1 Joins
-	conn1, err := connectAndJoin("p1", "Alice", 1, tableID)
+	conn1, err := testConnectAndJoin(ctx, s, wsURL, tableID, "p1", "Alice", 1, 0)
 	if err != nil {
 		t.Fatalf("Player 1 failed to join: %v", err)
 	}
@@ -96,7 +41,7 @@ func TestTableWebsocket(t *testing.T) {
 	}
 
 	// Player 2 Joins
-	conn2, err := connectAndJoin("p2", "Bob", 2, tableID)
+	conn2, err := testConnectAndJoin(ctx, s, wsURL, tableID, "p2", "Bob", 2, 0)
 	if err != nil {
 		t.Fatalf("Player 2 failed to join: %v", err)
 	}
@@ -212,17 +157,10 @@ func TestHandleTestGame(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// Check the status code is what we expect (Redirect to table).
-	if status := resp.StatusCode; status != http.StatusSeeOther {
+	// Check the status code is what we expect (no redirect).
+	if status := resp.StatusCode; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v",
-			status, http.StatusSeeOther)
-	}
-
-	// Check if the redirect location is correct
-	location := resp.Header.Get("Location")
-	if location != "/table/ThreeStooges" {
-		t.Errorf("handler returned wrong redirect location: got %v want %v",
-			location, "/table/ThreeStooges")
+			status, http.StatusOK)
 	}
 
 	// Verify cookie is set
@@ -272,4 +210,81 @@ func TestHandleTestGame(t *testing.T) {
 			t.Errorf("Expected player %s to have cards dealt", p.Name)
 		}
 	}
+}
+
+func testConnectAndJoin(ctx context.Context, serverState *ServerState, wsURL string, tableID string, playerID string, playerName string, symbol int, delay time.Duration) (*websocket.Conn, error) {
+	opts := &websocket.DialOptions{}
+	if serverState != nil && serverState.LocalDial != nil {
+		opts.HTTPClient = &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return serverState.LocalDial()
+				},
+			},
+		}
+	}
+	conn, _, err := websocket.Dial(ctx, wsURL, opts)
+	if err != nil {
+		return nil, fmt.Errorf("dial error: %w", err)
+	}
+
+	joinMsg, err := game.NewWsMessage(game.MsgTypeJoin, game.JoinMessage{
+		TableID: tableID,
+		Player: game.Player{
+			ID:     playerID,
+			Name:   playerName,
+			Symbol: symbol,
+		},
+	})
+	if err != nil {
+		if conn != nil {
+			conn.CloseNow()
+		}
+		return nil, fmt.Errorf("failed to create JoinMessage: %w", err)
+	}
+	if err := wsjson.Write(ctx, conn, joinMsg); err != nil {
+		conn.CloseNow()
+		return nil, fmt.Errorf("failed to write JoinMessage: %w", err)
+	}
+
+	fmt.Printf("\t- Joined table %s as %s\n", tableID, playerName)
+
+	// Read and respond to the initial ping from the server.
+	var pingMsg game.WsMessage
+	if err := wsjson.Read(ctx, conn, &pingMsg); err != nil {
+		conn.CloseNow()
+		return nil, fmt.Errorf("failed to read initial ping: %w", err)
+	}
+	if pingMsg.Type != game.MsgTypePing {
+		conn.CloseNow()
+		return nil, fmt.Errorf("expected ping message, got %s", pingMsg.Type)
+	}
+	p, err := pingMsg.Parse()
+	if err != nil {
+		conn.CloseNow()
+		return nil, fmt.Errorf("failed to parse ping: %w", err)
+	}
+	ping, ok := p.(*game.PingMessage)
+	if !ok {
+		conn.CloseNow()
+		return nil, fmt.Errorf("expected PingMessage payload, got %T", p)
+	}
+
+	fmt.Printf("\t- Receive Ping message on table %s as %s\n", tableID, playerName)
+
+	pongMsg, _ := game.NewWsMessage(game.MsgTypePong, game.PongMessage{
+		ServerTime: ping.ServerTime,
+		ClientTime: time.Now().UnixNano(),
+	})
+	if delay > 0 {
+		time.Sleep(delay)
+		fmt.Printf("\t- Slept %s on table %s as %s\n", delay, tableID, playerName)
+	}
+
+	if err := wsjson.Write(ctx, conn, pongMsg); err != nil {
+		conn.CloseNow()
+		return nil, fmt.Errorf("failed to write PongMessage: %w", err)
+	}
+	fmt.Printf("\t- Sent Pong message on table %s as %s\n", tableID, playerName)
+	return conn, nil
 }

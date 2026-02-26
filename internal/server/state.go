@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -23,6 +24,10 @@ type ServerState struct {
 	mu           sync.RWMutex
 	Tables       map[string]*game.Table
 	TableClients map[string]map[*websocket.Conn]string // TableID -> Conn -> PlayerID
+
+	// LocalDial allows local clients to connect directly to the server,
+	// bypassing TCP. It is only non-nil if the server was started with NetPipeAddr.
+	LocalDial func() (net.Conn, error)
 }
 
 // NewServerState creates a new ServerState.
