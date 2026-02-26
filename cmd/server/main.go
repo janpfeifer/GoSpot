@@ -16,12 +16,12 @@ var (
 func main() {
 	flag.Parse()
 
-	started := make(chan string, 1)
+	started := make(chan *server.ServerState, 1)
 	ctx := context.Background()
 
 	go func() {
-		actualAddr := <-started
-		fmt.Printf("GoSpot server listening on http://%s\n", actualAddr)
+		state := <-started
+		fmt.Printf("GoSpot server listening on http://%s\n", state.Address)
 	}()
 
 	if err := server.Run(ctx, *flagAddr, started); err != nil {
