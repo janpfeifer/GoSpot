@@ -27,6 +27,7 @@ type Game struct {
 	glowRed       bool
 	glowYellow    bool
 	lastTopCard   string
+	lastRound     int
 
 	onUpdate func()
 }
@@ -42,14 +43,32 @@ func (g *Game) OnMount(ctx app.Context) {
 	g.clickedSymbol = -1
 	g.matchedSymbol = -1
 	g.lastTopCard = fmt.Sprintf("%v", State.TopCard)
+	g.lastRound = State.Round
 	g.onUpdate = func() {
 		klog.Infof("Game component: Notify received")
 		ctx.Dispatch(func(ctx app.Context) {
 			g.State = State.Table
 			g.Error = State.Error
 
-			// Detect top card change to unblock actionPending
-			if len(State.TopCard) > 0 {
+			// Detect round change to unblock actionPending and play sounds
+			if State.Round != g.lastRound {
+				// Round changed! Check if we were waiting for a result
+				if g.matchedSymbol != -1 {
+					if State.WinnerID == State.Player.ID {
+						State.PlaySound("/web/sounds/matched.mp3")
+					} else {
+						State.PlaySound("/web/sounds/lost-tie.mp3")
+					}
+				}
+
+				g.actionPending = false
+				g.clickedSymbol = -1
+				g.matchedSymbol = -1
+				g.glowYellow = false
+				g.lastRound = State.Round
+				g.lastTopCard = fmt.Sprintf("%v", State.TopCard)
+			} else if len(State.TopCard) > 0 {
+				// Fallback: Detect top card change (e.g. initial game start or unusual state)
 				topCardStr := fmt.Sprintf("%v", State.TopCard)
 				if topCardStr != g.lastTopCard {
 					g.actionPending = false
@@ -152,6 +171,7 @@ func (g *Game) onSymbolClick(ctx app.Context, symbol int) {
 
 	} else {
 		// No match: set penalty time.
+		State.PlaySound("/web/sounds/wrong.mp3")
 		g.glowRed = true
 		if State.Player != nil {
 			State.Player.InPenalty = true
