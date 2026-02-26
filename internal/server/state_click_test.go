@@ -131,12 +131,14 @@ func TestLatencyCompensationClick(t *testing.T) {
 
 		// Fast player clicks first
 		_ = wsjson.Write(ctx, conn1, fastClickMsg)
+		synctest.Wait() // Ensure server processes the click
 
 		// Advance time by 5ms
 		time.Sleep(5 * time.Millisecond)
 
 		// Slow player clicks
 		_ = wsjson.Write(ctx, conn2, slowClickMsg)
+		synctest.Wait() // Ensure server processes the click
 
 		// Enough time for timer to fire
 		time.Sleep(100 * time.Millisecond)
