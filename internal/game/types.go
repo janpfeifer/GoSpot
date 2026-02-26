@@ -17,13 +17,24 @@ type Player struct {
 	Hand      [][]int       `json:"-"`          // Cards in player's hand (not sent in full state)
 }
 
+// PendingClick represents a client click that is currently delayed waiting to be processed.
+type PendingClick struct {
+	PlayerID    string
+	ProcessTime time.Time
+	Symbol      int
+	Round       int // The round in which this click was made
+}
+
 // Table represents a game room.
 type Table struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Players    []*Player `json:"players"`     // Players currently at the table
-	Started    bool      `json:"started"`     // True if game has started
-	TargetCard []int     `json:"target_card"` // Current card on the table
+	ID           string        `json:"id"`
+	Name         string        `json:"name"`
+	Players      []*Player     `json:"players"`     // Players currently at the table
+	Started      bool          `json:"started"`     // True if game has started
+	TargetCard   []int         `json:"target_card"` // Current card on the table
+	Round        int           `json:"round"`       // Current round number
+	PendingClick *PendingClick `json:"-"`           // Server tracking of pending click
+	ClickTimer   *time.Timer   `json:"-"`           // Server timer to process the click
 }
 
 // Message type for WebSocket communication between client and server.
@@ -108,8 +119,10 @@ type StateMessage struct {
 
 // UpdateMessage is the payload for MsgTypeUpdate
 type UpdateMessage struct {
-	TargetCard []int `json:"target_card"` // Current card on the table
-	TopCard    []int `json:"top_card"`    // Player's top card
+	TargetCard []int  `json:"target_card"` // Current card on the table
+	TopCard    []int  `json:"top_card"`    // Player's top card
+	Round      int    `json:"round"`       // Current round number
+	WinnerID   string `json:"winner_id"`   // Player ID who won the previous round
 }
 
 // ClickMessage is the payload for MsgTypeClick

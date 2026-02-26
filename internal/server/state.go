@@ -138,7 +138,7 @@ func (s *ServerState) joinTable(tableID string, player *game.Player, conn *webso
 
 	s.broadcastStateLocked(tableID)
 	if table.Started {
-		s.broadcastUpdateLocked(tableID)
+		s.broadcastUpdateLocked(tableID, "")
 	}
 	return table
 }
@@ -201,8 +201,9 @@ func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table
 			}
 
 			table.Started = true
+			table.Round = 1
 			s.broadcastStateLocked(table.ID)
-			s.broadcastUpdateLocked(table.ID)
+			s.broadcastUpdateLocked(table.ID, "")
 			s.broadcastPingLocked(table.ID)
 		}
 	case game.MsgTypeCancel:
@@ -247,12 +248,141 @@ func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table
 			}
 		}
 		s.broadcastStateLocked(table.ID)
+	case game.MsgTypeClick:
+		if !table.Started {
+			return
+		}
+		p, err := msg.Parse()
+		if err != nil {
+			klog.Errorf("tableHandleMessage: Failed to parse click message: %v", err)
+			return
+		}
+		clickMsg, ok := p.(*game.ClickMessage)
+		if !ok {
+			return
+		}
+
+		if len(player.Hand) == 0 {
+			return // Cannot click if they have no cards
+		}
+
+		// 1. Validate that the symbol exists in both the TargetCard and the player's top card.
+		validTarget := false
+		for _, sym := range table.TargetCard {
+			if sym == clickMsg.Symbol {
+				validTarget = true
+				break
+			}
+		}
+		validTop := false
+		for _, sym := range player.Hand[0] {
+			if sym == clickMsg.Symbol {
+				validTop = true
+				break
+			}
+		}
+
+		if !validTarget || !validTop {
+			klog.Infof("tableHandleMessage: Player %s made an invalid click", player.Name)
+			// Ignore the click, relying on the frontend to handle the visual penalty.
+			return
+		}
+
+		// Calculate latency compensation
+		var maxLatency time.Duration
+		for _, p := range table.Players {
+			if p.Latency > maxLatency {
+				maxLatency = p.Latency
+			}
+		}
+
+		delay := maxLatency - player.Latency
+		if delay < 0 {
+			delay = 0
+		}
+		processTime := time.Now().Add(delay)
+
+		klog.Infof("tableHandleMessage: Player %s valid click on %d. Delay %v, Target process %v", player.Name, clickMsg.Symbol, delay, processTime)
+
+		// Check if we should override the pending click
+		if table.PendingClick == nil || processTime.Before(table.PendingClick.ProcessTime) {
+			table.PendingClick = &game.PendingClick{
+				PlayerID:    player.ID,
+				ProcessTime: processTime,
+				Symbol:      clickMsg.Symbol,
+				Round:       table.Round,
+			}
+
+			if table.ClickTimer != nil {
+				table.ClickTimer.Stop()
+			}
+			table.ClickTimer = time.AfterFunc(delay, func() {
+				s.processWinningClick(table.ID, processTime)
+			})
+		}
 	}
+}
+
+// processWinningClick is called when the delay timer for a winning click has expired.
+func (s *ServerState) processWinningClick(tableID string, expectedProcessTime time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	table, ok := s.Tables[tableID]
+	if !ok || !table.Started {
+		return
+	}
+
+	pc := table.PendingClick
+	if pc == nil || !pc.ProcessTime.Equal(expectedProcessTime) {
+		// Another click took precedence or it was already processed
+		return
+	}
+
+	// Double check the round
+	if pc.Round != table.Round {
+		return
+	}
+
+	// Find the winning player
+	var winner *game.Player
+	for _, p := range table.Players {
+		if p.ID == pc.PlayerID {
+			winner = p
+			break
+		}
+	}
+
+	if winner == nil || len(winner.Hand) == 0 {
+		return
+	}
+
+	// Discard cards (3 if matched player symbol, 1 otherwise)
+	numToDiscard := 1
+	if pc.Symbol == winner.Symbol {
+		numToDiscard = 3
+	}
+	if numToDiscard > len(winner.Hand) {
+		numToDiscard = len(winner.Hand)
+	}
+
+	// The target card becomes the last discarded card from the player's hand.
+	table.TargetCard = winner.Hand[numToDiscard-1]
+	winner.Hand = winner.Hand[numToDiscard:]
+	winner.Score = len(winner.Hand)
+
+	table.Round++
+	table.PendingClick = nil // Reset
+
+	klog.Infof("processWinningClick: Player %s wins round %d on table %s! Discarded %d cards.", winner.Name, table.Round, tableID, numToDiscard)
+
+	s.broadcastStateLocked(tableID)
+	s.broadcastUpdateLocked(tableID, pc.PlayerID)
 }
 
 // broadcastUpdateLocked broadcasts individual game updates (top card, target card) to each client.
 // Assumes s.mu is locked.
-func (s *ServerState) broadcastUpdateLocked(tableID string) {
+func (s *ServerState) broadcastUpdateLocked(tableID string, winnerID string) {
 	table, ok := s.Tables[tableID]
 	if !ok || !table.Started {
 		return
@@ -268,13 +398,16 @@ func (s *ServerState) broadcastUpdateLocked(tableID string) {
 			}
 		}
 
-		if player == nil || len(player.Hand) == 0 {
-			continue
+		var topCard []int
+		if player != nil && len(player.Hand) > 0 {
+			topCard = player.Hand[0]
 		}
 
 		updateMsg, err := game.NewWsMessage(game.MsgTypeUpdate, game.UpdateMessage{
 			TargetCard: table.TargetCard,
-			TopCard:    player.Hand[0],
+			TopCard:    topCard,
+			Round:      table.Round,
+			WinnerID:   winnerID,
 		})
 		if err != nil {
 			klog.Errorf("broadcastUpdateLocked: Failed to create update message: %v", err)
@@ -366,6 +499,7 @@ func (s *ServerState) HandleTestGame(w http.ResponseWriter, r *http.Request) {
 		p.Score = len(p.Hand)
 	}
 	table.Started = true
+	table.Round = 1
 
 	// Set cookie for Moe
 	moeJSON, err := json.Marshal(moe)
