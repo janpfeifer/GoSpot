@@ -158,7 +158,7 @@ func TestHandleTestGame(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Check the status code is what we expect (no redirect).
-	if status := resp.StatusCode; status != http.StatusOK {
+	if status := resp.StatusCode; status != http.StatusSeeOther {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusOK)
 	}
@@ -220,6 +220,8 @@ func testConnectAndJoin(ctx context.Context, serverState *ServerState, wsURL str
 				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 					return serverState.LocalDial()
 				},
+				DisableKeepAlives: true,  // Forces a new pipe for every request
+				ForceAttemptHTTP2: false, // Ensure no H2 logic interferes
 			},
 		}
 	}

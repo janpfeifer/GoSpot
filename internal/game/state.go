@@ -1,6 +1,8 @@
 package game
 
 import (
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -33,4 +35,13 @@ type Table struct {
 	Round        int           `json:"round"`       // Current round number
 	PendingClick *PendingClick `json:"-"`           // Server tracking of pending click
 	ClickTimer   *time.Timer   `json:"-"`           // Server timer to process the click
+}
+
+func (t *Table) String() string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Table %s: name=%s, started=%t, round=%d, targetCard=%v, players: ", t.ID, t.Name, t.Started, t.Round, t.TargetCard)
+	for _, p := range t.Players {
+		fmt.Fprintf(&sb, "%s (%d, %d cards), ", p.Name, p.Score, len(p.Hand))
+	}
+	return sb.String()
 }

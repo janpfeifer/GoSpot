@@ -15,10 +15,9 @@ import (
 
 func TestLatencyCompensationClick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
 		startAddrChan := make(chan *ServerState, 1)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		go Run(ctx, NetPipeAddr, startAddrChan)
 		serverState := <-startAddrChan
 		startAddr := serverState.Address
@@ -64,6 +63,8 @@ func TestLatencyCompensationClick(t *testing.T) {
 		}
 		go drainConn(conn1)
 		go drainConn(conn2)
+
+		fmt.Println("Sending start message")
 		startMsg, _ := game.NewWsMessage(game.MsgTypeStart, nil)
 		_ = wsjson.Write(ctx, conn1, startMsg)
 
@@ -84,6 +85,8 @@ func TestLatencyCompensationClick(t *testing.T) {
 		if table == nil {
 			t.Fatalf("Table not found")
 		}
+		synctest.Wait()
+		fmt.Printf("- Table: %s\n", table)
 
 		var fastPlayer, slowPlayer *game.Player
 		for _, p := range table.Players {
