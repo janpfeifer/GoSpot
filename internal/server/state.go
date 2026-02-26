@@ -167,16 +167,31 @@ func (s *ServerState) leaveTable(table *game.Table, conn *websocket.Conn) {
 	playerID, ok := clients[conn]
 	if ok {
 		delete(clients, conn)
-		// Remove from players slice
-		for i, p := range table.Players {
+
+		// Find the player
+		var player *game.Player
+		for _, p := range table.Players {
 			if p.ID == playerID {
-				table.Players = slices.Delete(table.Players, i, i+1)
+				player = p
 				break
 			}
 		}
 
-		// If table is empty, we could delete it, but memory is small
-		if len(table.Players) == 0 {
+		// Remove from players slice only if they haven't finished (Score > 0)
+		if player != nil && player.Score > 0 {
+			for i, p := range table.Players {
+				if p.ID == playerID {
+					table.Players = slices.Delete(table.Players, i, i+1)
+					break
+				}
+			}
+		} else if player != nil {
+			klog.Infof("Player %s disconnected but finished game, keeping in table.", player.Name)
+		}
+
+		// If table has no active connections, we delete it
+		if len(clients) == 0 {
+			klog.Infof("Table %s has no active connections, deleting.", table.ID)
 			delete(s.Tables, table.ID)
 			delete(s.TableClients, table.ID)
 		} else {
@@ -262,6 +277,7 @@ func (s *ServerState) handleGameStart(table *game.Table, startingPlayer *game.Pl
 	}
 
 	table.Started = true
+	table.StartTime = time.Now()
 	table.Round = 1
 	s.broadcastStateLocked(table)
 	s.broadcastUpdateLocked(table, "")
@@ -370,6 +386,28 @@ func (s *ServerState) processWinningClick(tableID string, expectedProcessTime ti
 	table.TargetCard = winner.Hand[numToDiscard-1]
 	winner.Hand = winner.Hand[numToDiscard:]
 	winner.Score = len(winner.Hand)
+
+	// Check if winner has finished the game
+	if winner.Score == 0 {
+		duration := time.Since(table.StartTime)
+		minutes := int(duration.Minutes())
+		seconds := int(duration.Seconds()) % 60
+		winner.TimeTaken = fmt.Sprintf("%02d:%02d", minutes, seconds)
+		winner.IsWinner = false
+
+		// Check if they are the first winner
+		alreadyWon := false
+		for _, p := range table.Players {
+			if p.ID != winner.ID && p.TimeTaken != "" {
+				alreadyWon = true
+				break
+			}
+		}
+		if !alreadyWon {
+			winner.IsWinner = true
+		}
+		klog.Infof("Player %s finished the game in %s", winner.Name, winner.TimeTaken)
+	}
 
 	table.Round++
 	table.PendingClick = nil // Reset

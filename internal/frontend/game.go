@@ -306,11 +306,20 @@ func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 func (g *Game) renderPlayerList(players []*game.Player) app.UI {
 	var listItems []app.UI
 	for _, p := range players {
+		var text string
+		if p.Score == 0 {
+			text = fmt.Sprintf("%s: %s", p.Name, p.TimeTaken)
+			if p.IsWinner {
+				text = "👑 " + text
+			}
+		} else {
+			text = fmt.Sprintf("%s: %d cards left ...", p.Name, p.Score)
+		}
 		listItems = append(listItems, app.Li().Class("player-item-game").Body(
 			app.Img().
 				Src(fmt.Sprintf("/web/images/symbol_%02d.png", p.Symbol)).
 				Style("width", "32px").Style("height", "32px"),
-			app.Span().Text(fmt.Sprintf("%s: %d cards left ...", p.Name, p.Score)),
+			app.Span().Text(text),
 		))
 	}
 	return app.Ul().Class("player-list-game").Body(listItems...)
@@ -358,6 +367,40 @@ func (g *Game) Render() app.UI {
 			}
 		}
 
+		// Find current player in state to get up-to-date score and finished status
+		var currentPlayer *game.Player
+		for _, p := range g.State.Players {
+			if p.ID == State.Player.ID {
+				currentPlayer = p
+				break
+			}
+		}
+		if currentPlayer == nil {
+			currentPlayer = State.Player
+		}
+
+		var playerCardArea app.UI
+		var playerInfoText string
+		if currentPlayer.Score == 0 {
+			playerCardArea = app.Img().Src("/web/images/win.png").Style("width", "520px").Style("height", "520px")
+			playerInfoText = fmt.Sprintf("%s (%s)", currentPlayer.Name, currentPlayer.TimeTaken)
+			if currentPlayer.IsWinner {
+				playerInfoText = "👑 " + playerInfoText
+			}
+		} else {
+			playerCardArea = g.renderCard(State.TopCard, 520, true)
+			playerInfoText = fmt.Sprintf("%s (%d cards left)", currentPlayer.Name, currentPlayer.Score)
+		}
+
+		// Create New Game button if finished
+		var createNewGameBtn app.UI
+		if currentPlayer.Score == 0 {
+			createNewGameBtn = app.Button().Text("Create New Game").OnClick(func(ctx app.Context, e app.Event) {
+				State.Player.Score = 0 // Reset local score logic just in case, though navigation handles it
+				ctx.Navigate("/")
+			}).Style("margin-top", "1rem")
+		}
+
 		content = app.Div().Class("game-grid").Body(
 			// First Column (70/30)
 			app.Div().Class("game-column").Body(
@@ -365,15 +408,16 @@ func (g *Game) Render() app.UI {
 				app.Div().Class("column-70").Class("card-container").Body(
 					app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "0.5rem").Style("margin-bottom", "0.5rem").Body(
 						app.Img().
-							Src(fmt.Sprintf("/web/images/symbol_%02d.png", State.Player.Symbol)).
+							Src(fmt.Sprintf("/web/images/symbol_%02d.png", currentPlayer.Symbol)).
 							Style("width", "32px").Style("height", "32px"),
-						app.Strong().Text(fmt.Sprintf("%s (%d cards left)", State.Player.Name, State.Player.Score)),
+						app.Strong().Text(playerInfoText),
 					),
-					g.renderCard(State.TopCard, 520, true),
+					playerCardArea,
 				),
 				// Bottom: Other players list - second half (30%)
 				app.Div().Class("column-30").Body(
 					g.renderPlayerList(bottomLeftPlayers),
+					createNewGameBtn,
 				),
 			),
 			// Second Column (30/70)

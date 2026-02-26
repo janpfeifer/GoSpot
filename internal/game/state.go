@@ -15,6 +15,8 @@ type Player struct {
 	InPenalty bool          `json:"in_penalty"` // True if player clicked wrong symbol
 	Latency   time.Duration `json:"latency"`    // Measured round-trip time / 2 (one-way estimate)
 	Hand      [][]int       `json:"-"`          // Cards in player's hand (not sent in full state)
+	IsWinner  bool          `json:"is_winner"`  // True if player won (was first to finish)
+	TimeTaken string        `json:"time_taken"` // Time taken to finish the game ("MM:SS"), or empty if not finished
 }
 
 // PendingClick represents a client click that is currently delayed waiting to be processed.
@@ -31,6 +33,7 @@ type Table struct {
 	Name         string        `json:"name"`
 	Players      []*Player     `json:"players"`     // Players currently at the table
 	Started      bool          `json:"started"`     // True if game has started
+	StartTime    time.Time     `json:"start_time"`  // When the game started
 	TargetCard   []int         `json:"target_card"` // Current card on the table
 	Round        int           `json:"round"`       // Current round number
 	PendingClick *PendingClick `json:"-"`           // Server tracking of pending click
