@@ -370,3 +370,18 @@ func (s *GlobalClientState) SendCancel() {
 	defer cancel()
 	wsjson.Write(ctx, s.Conn, msg)
 }
+
+// SendClick sends a click message to the server
+func (s *GlobalClientState) SendClick(symbol int) {
+	if s.Conn == nil {
+		return
+	}
+	msg, err := game.NewWsMessage(game.MsgTypeClick, game.ClickMessage{Symbol: symbol})
+	if err != nil {
+		klog.Errorf("SendClick: Failed to create click message: %v", err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+	wsjson.Write(ctx, s.Conn, msg)
+}

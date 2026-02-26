@@ -37,6 +37,7 @@ const (
 	MsgTypePing   MessageType = "ping"   // Server pings client to measure RTT
 	MsgTypePong   MessageType = "pong"   // Client responds to ping
 	MsgTypeUpdate MessageType = "update" // Server sends game update (top card, target card)
+	MsgTypeClick  MessageType = "click"  // Client clicks a symbol
 	MsgTypeError  MessageType = "error"  // Server sends an error message
 	MsgTypeChat   MessageType = "chat"   // (Optional) simple chat
 )
@@ -78,6 +79,8 @@ func (m *WsMessage) Parse() (any, error) {
 		target = &PongMessage{}
 	case MsgTypeUpdate:
 		target = &UpdateMessage{}
+	case MsgTypeClick:
+		target = &ClickMessage{}
 	case MsgTypeError:
 		target = &ErrorMessage{}
 	default:
@@ -107,6 +110,11 @@ type StateMessage struct {
 type UpdateMessage struct {
 	TargetCard []int `json:"target_card"` // Current card on the table
 	TopCard    []int `json:"top_card"`    // Player's top card
+}
+
+// ClickMessage is the payload for MsgTypeClick
+type ClickMessage struct {
+	Symbol int `json:"symbol"` // The symbol ID that was clicked
 }
 
 // PingMessage is the payload for MsgTypePing

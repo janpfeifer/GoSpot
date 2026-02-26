@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/janpfeifer/GoSpot/internal/game"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
@@ -18,6 +19,14 @@ type Game struct {
 	State  *game.Table
 	Error  string
 
+	// Click state
+	actionPending bool
+	clickedSymbol int
+	matchedSymbol int
+	glowRed       bool
+	glowYellow    bool
+	lastTopCard   string
+
 	onUpdate func()
 }
 
@@ -29,11 +38,27 @@ func (g *Game) OnAppUpdate(ctx app.Context) {
 func (g *Game) OnMount(ctx app.Context) {
 	klog.Infof("Game component: OnMount called")
 	g.State = State.Table
+	g.clickedSymbol = -1
+	g.matchedSymbol = -1
+	g.lastTopCard = fmt.Sprintf("%v", State.TopCard)
 	g.onUpdate = func() {
 		klog.Infof("Game component: Notify received")
 		ctx.Dispatch(func(ctx app.Context) {
 			g.State = State.Table
 			g.Error = State.Error
+
+			// Detect top card change to unblock actionPending
+			if len(State.TopCard) > 0 {
+				topCardStr := fmt.Sprintf("%v", State.TopCard)
+				if topCardStr != g.lastTopCard {
+					g.actionPending = false
+					g.clickedSymbol = -1
+					g.matchedSymbol = -1
+					g.glowYellow = false
+					g.lastTopCard = topCardStr
+				}
+			}
+
 			if g.State != nil {
 				klog.Infof("Game component: State updated. Player count: %d", len(g.State.Players))
 				if !g.State.Started {
@@ -45,12 +70,24 @@ func (g *Game) OnMount(ctx app.Context) {
 		})
 	}
 	State.Listeners["game"] = g.onUpdate
+
+	app.Window().Set("triggerSymbolClick", app.FuncOf(func(this app.Value, args []app.Value) any {
+		if len(args) >= 1 {
+			symbol := args[0].Int()
+			ctx.Dispatch(func(ctx app.Context) {
+				g.onSymbolClick(ctx, symbol)
+			})
+		}
+		return nil
+	}))
+
 	State.SyncMusic()
 }
 
 func (g *Game) OnDismount() {
 	klog.Infof("Game component: OnDismount called")
 	delete(State.Listeners, "game")
+	app.Window().Set("triggerSymbolClick", app.Undefined())
 }
 
 func (g *Game) OnNav(ctx app.Context) {
@@ -91,6 +128,73 @@ func (g *Game) onToggleSound(ctx app.Context, e app.Event) {
 	State.ToggleSound()
 }
 
+const PenaltyDuration = 2 * time.Second
+const GlowDuration = 500 * time.Millisecond
+
+func (g *Game) onSymbolClick(ctx app.Context, symbol int) {
+	if g.actionPending {
+		return
+	}
+
+	g.actionPending = true
+	g.clickedSymbol = symbol
+
+	// Check for match
+	matched := false
+	for _, targetSym := range State.TargetCard {
+		if targetSym == symbol {
+			matched = true
+			break
+		}
+	}
+
+	if matched {
+		g.matchedSymbol = symbol
+		g.glowYellow = true
+		time.AfterFunc(GlowDuration, func() {
+			ctx.Dispatch(func(ctx app.Context) {
+				g.glowYellow = false
+			})
+		})
+	} else {
+		g.glowRed = true
+		if State.Player != nil {
+			State.Player.InPenalty = true
+		}
+		time.AfterFunc(PenaltyDuration, func() {
+			ctx.Dispatch(func(ctx app.Context) {
+				g.glowRed = false
+				g.actionPending = false
+				g.clickedSymbol = -1
+				if State.Player != nil {
+					State.Player.InPenalty = false
+				}
+			})
+		})
+	}
+
+	State.SendClick(symbol)
+}
+
+func (g *Game) getGlowFilter(s int, isPlayerCard bool) string {
+	if isPlayerCard {
+		if s == g.clickedSymbol {
+			if g.glowYellow {
+				return "url(#glow-yellow-white)"
+			}
+			if g.glowRed {
+				return "url(#glow-red)"
+			}
+		}
+	} else {
+		// Target card
+		if s == g.matchedSymbol && g.glowYellow {
+			return "url(#glow-yellow-white)"
+		}
+	}
+	return "none"
+}
+
 func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 	if len(symbols) == 0 {
 		return app.Div().Class("card-svg").Style("width", fmt.Sprintf("%dpx", size)).Style("height", fmt.Sprintf("%dpx", size)).Body(
@@ -105,13 +209,30 @@ func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 	symbolSize := float64(size) / 5.0
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf(`<svg width="%d" height="%d" viewBox="0 0 %d %d" class="card-svg">`, size, size, size, size))
+	sb.WriteString(fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%[1]d" height="%[1]d" viewBox="0 0 %[1]d %[1]d" class="card-svg">`, size))
+
+	sb.WriteString(`<defs>
+		<filter id="glow-red" x="-50%" y="-50%" width="200%" height="200%">
+			<feGaussianBlur stdDeviation="8" result="blur" />
+			<feFlood flood-color="red" result="color" />
+			<feComposite in="color" in2="blur" operator="in" result="glow" />
+			<feComposite in="SourceGraphic" in2="glow" operator="over" />
+		</filter>
+		<filter id="glow-yellow-white" x="-50%" y="-50%" width="200%" height="200%">
+			<feGaussianBlur stdDeviation="8" result="blur" />
+			<feFlood flood-color="gold" result="color" />
+			<feComposite in="color" in2="blur" operator="in" result="glow" />
+			<feComposite in="SourceGraphic" in2="glow" operator="over" />
+		</filter>
+	</defs>`)
 
 	if isClickable {
 		sb.WriteString(`<style>
 			.symbol-group { cursor: pointer; }
 			.symbol-ring { opacity: 0; transition: opacity 0.2s ease-in-out; }
 			.symbol-group:hover .symbol-ring { opacity: 1; }
+			.symbol-group.disabled { cursor: not-allowed; opacity: 0.5; }
+			.symbol-group.disabled:hover .symbol-ring { opacity: 0; }
 		</style>`)
 	}
 
@@ -125,7 +246,15 @@ func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 		y := center + innerRadius*0.70*math.Sin(angle) - symbolSize/2
 
 		if isClickable {
-			sb.WriteString(`<g class="symbol-group">`)
+			disabledClass := ""
+			onClickAttr := fmt.Sprintf(`onclick="triggerSymbolClick(%d)"`, s)
+			if g.actionPending {
+				disabledClass = " disabled"
+				onClickAttr = ""
+			}
+
+			sb.WriteString(fmt.Sprintf(`<g class="symbol-group%s" %s>`, disabledClass, onClickAttr))
+
 			// Add a blurred ring around the symbol to indicate it is clickable on hover
 			cx := x + symbolSize/2
 			cy := y + symbolSize/2
@@ -134,17 +263,26 @@ func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 				`<circle class="symbol-ring" cx="%f" cy="%f" r="%f" fill="none" stroke="var(--pico-primary-hover)" stroke-width="6" filter="blur(3px)" />`,
 				cx, cy, ringRadius,
 			))
+		} else {
+			sb.WriteString(`<g>`)
+		}
+
+		filterStyle := ""
+		filter := g.getGlowFilter(s, isClickable)
+		if filter != "none" {
+			filterStyle = fmt.Sprintf(`style="filter: %s; transition: filter 0.1s ease-in-out;"`, filter)
+		} else {
+			filterStyle = `style="transition: filter 0.1s ease-in-out;"`
 		}
 
 		sb.WriteString(fmt.Sprintf(
-			`<image href="/web/images/symbol_%02d.png" x="%f" y="%f" width="%f" height="%f" />`,
-			s, x, y, symbolSize, symbolSize,
+			`<image href="/web/images/symbol_%02d.png" x="%f" y="%f" width="%f" height="%f" %s />`,
+			s, x, y, symbolSize, symbolSize, filterStyle,
 		))
 
-		if isClickable {
-			sb.WriteString(`</g>`)
-		}
+		sb.WriteString(`</g>`)
 	}
+
 	sb.WriteString(`</svg>`)
 
 	return app.Raw(sb.String())
