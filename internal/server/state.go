@@ -203,6 +203,7 @@ func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table
 			table.Started = true
 			s.broadcastStateLocked(table.ID)
 			s.broadcastUpdateLocked(table.ID)
+			s.broadcastPingLocked(table.ID)
 		}
 	case game.MsgTypeCancel:
 		// Only creator (first player) can cancel
@@ -306,6 +307,22 @@ func (s *ServerState) broadcastStateLocked(tableID string) {
 			defer cancel()
 			_ = wsjson.Write(ctx, c, tm)
 		}(conn, stateMsg)
+	}
+}
+
+// broadcastPingLocked sends a ping to all connections on the table to measure latency.
+// Assumes s.mu is locked.
+func (s *ServerState) broadcastPingLocked(tableID string) {
+	pingMsg, _ := game.NewWsMessage(game.MsgTypePing, game.PingMessage{
+		ServerTime: time.Now().UnixNano(),
+	})
+
+	for conn := range s.TableClients[tableID] {
+		go func(c *websocket.Conn, pm game.WsMessage) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+			_ = wsjson.Write(ctx, c, pm)
+		}(conn, pingMsg)
 	}
 }
 
