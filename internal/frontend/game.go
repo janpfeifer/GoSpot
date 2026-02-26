@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -138,15 +139,7 @@ func (g *Game) onSymbolClick(ctx app.Context, symbol int) {
 
 	g.actionPending = true
 	g.clickedSymbol = symbol
-
-	// Check for match
-	matched := false
-	for _, targetSym := range State.TargetCard {
-		if targetSym == symbol {
-			matched = true
-			break
-		}
-	}
+	matched := slices.Contains(State.TargetCard, symbol)
 
 	if matched {
 		g.matchedSymbol = symbol
@@ -156,7 +149,9 @@ func (g *Game) onSymbolClick(ctx app.Context, symbol int) {
 				g.glowYellow = false
 			})
 		})
+
 	} else {
+		// No match: set penalty time.
 		g.glowRed = true
 		if State.Player != nil {
 			State.Player.InPenalty = true
@@ -231,7 +226,7 @@ func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 			.symbol-group { cursor: pointer; }
 			.symbol-ring { opacity: 0; transition: opacity 0.2s ease-in-out; }
 			.symbol-group:hover .symbol-ring { opacity: 1; }
-			.symbol-group.disabled { cursor: not-allowed; opacity: 0.5; }
+			.symbol-group.disabled { cursor: not-allowed; }
 			.symbol-group.disabled:hover .symbol-ring { opacity: 0; }
 		</style>`)
 	}
