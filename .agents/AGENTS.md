@@ -18,11 +18,11 @@ The project is written entirely in Go, utilizing WebAssembly (Wasm) for the fron
 ## Directory Structure & Build Targets
 This repository produces TWO binaries. You must strictly respect the separation of concerns to avoid importing Wasm-only packages into the server, or server-only packages (like heavy DB drivers) into the Wasm client.
 
-* `cmd/server/`: The backend entry point. Runs the HTTP/WebSocket server and serves the `web/` directory.
+* `cmd/server/`: The backend entry point. A thin wrapper around `internatl/server/`.
 * `cmd/wasm/`: The frontend entry point. Built strictly with `GOOS=js GOARCH=wasm`. Mounts the `go-app` UI and initializes Ebitengine.
-* `internal/game/`: Shared logic. Contains pure Go code (e.g., `GameState`, deck generation math, rules). Imported by both server and wasm.
-* `internal/lobby/`: Frontend UI logic. Contains `go-app` components.
-* `internal/engine/`: Frontend game rendering. Contains Ebitengine Canvas logic.
+* `internal/game/`: Shared logic: state objects, messages, deck. Imported by both server and wasm.
+* `internal/frontend/`: Frontend UI logic. Contains `go-app` components.
+* `internal/server/`: Backend webserver and logic.
 * `web/`: Static assets (`index.html`, `css/pico.min.css`, `images/`, and the `.gitignore`'d `app.wasm`).
 
 ### Symbol Images
