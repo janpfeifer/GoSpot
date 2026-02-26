@@ -303,8 +303,8 @@ func (s *ServerState) handleClick(table *game.Table, player *game.Player, msg *g
 			table.ClickTimer.Stop()
 		}
 		if delay == 0 {
-			// Process click immediately.
-			s.processWinningClick(table.ID, processTime)
+			// Process click immediately in a new goroutine to avoid deadlock.
+			go s.processWinningClick(table.ID, processTime)
 		} else {
 			table.ClickTimer = time.AfterFunc(delay, func() {
 				s.processWinningClick(table.ID, processTime)
