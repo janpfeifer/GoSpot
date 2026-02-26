@@ -50,6 +50,25 @@ func (s *GlobalClientState) ToggleSound() {
 	s.Notify()
 }
 
+func (s *GlobalClientState) PlaySound(url string) {
+	if !s.SoundEnabled {
+		return
+	}
+	// Create a new Audio element for the sound effect
+	audio := app.Window().Get("document").Call("createElement", "audio")
+	audio.Set("src", url)
+	audio.Set("volume", 1.0)
+
+	// Play the sound (fire and forget)
+	promise := audio.Call("play")
+	if promise.Truthy() {
+		promise.Call("catch", app.FuncOf(func(this app.Value, args []app.Value) any {
+			klog.Errorf("PlaySound: Failed to play %s: %v", url, args[0])
+			return nil
+		}))
+	}
+}
+
 func (s *GlobalClientState) SyncMusic() {
 	if app.IsServer {
 		return
