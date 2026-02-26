@@ -18,13 +18,14 @@ func TestServerRun(t *testing.T) {
 
 	// Start the server in a goroutine
 	errCh := make(chan error, 1)
-	started := make(chan string, 1)
+	started := make(chan *ServerState, 1)
 	go func() {
 		errCh <- Run(ctx, addr, started)
 	}()
 
 	// Wait for the server to start and get the actual address
-	actualAddr := <-started
+	state := <-started
+	actualAddr := state.Address
 
 	// Make an HTTP request to the login page (root route maps to login for unauthenticated)
 	resp, err := http.Get("http://" + actualAddr + "/")
@@ -71,12 +72,13 @@ func TestServerRunAutoPort(t *testing.T) {
 	addr := ""
 
 	errCh := make(chan error, 1)
-	started := make(chan string, 1)
+	started := make(chan *ServerState, 1)
 	go func() {
 		errCh <- Run(ctx, addr, started)
 	}()
 
-	actualAddr := <-started
+	state := <-started
+	actualAddr := state.Address
 	if actualAddr == "" {
 		t.Fatal("Expected actualAddr to be non-empty")
 	}

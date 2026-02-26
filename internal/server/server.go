@@ -14,7 +14,7 @@ import (
 // Run starts the server and blocks until the context is canceled.
 // If addr is empty, it listens on an automatic port on the localhost interface.
 // It sends the actual address it's listening on to the started channel if it's not nil.
-func Run(ctx context.Context, addr string, started chan<- string) error {
+func Run(ctx context.Context, addr string, started chan<- *ServerState) error {
 	if addr == "" {
 		addr = "127.0.0.1:0"
 	}
@@ -24,15 +24,16 @@ func Run(ctx context.Context, addr string, started chan<- string) error {
 		return err
 	}
 	actualAddr := ln.Addr().String()
-	if started != nil {
-		started <- actualAddr
-	}
 
 	// Initialize global lobby state for server-side prerendering without panic
 	frontend.InitState()
 
 	// Initialize server state
 	serverState := NewServerState()
+	serverState.Address = actualAddr
+	if started != nil {
+		started <- serverState
+	}
 
 	// Register go-app routes so the server knows how to prerender them
 	app.Route("/", func() app.Composer { return &frontend.Home{} })
