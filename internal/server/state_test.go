@@ -252,24 +252,34 @@ func testConnectAndJoin(ctx context.Context, serverState *ServerState, wsURL str
 	fmt.Printf("\t- Joined table %s as %s\n", tableID, playerName)
 
 	// Read and respond to the initial ping from the server.
+	// We might receive a state message first if the connection is established while state is being broadcast.
 	var pingMsg game.WsMessage
-	if err := wsjson.Read(ctx, conn, &pingMsg); err != nil {
-		conn.CloseNow()
-		return nil, fmt.Errorf("failed to read initial ping: %w", err)
-	}
-	if pingMsg.Type != game.MsgTypePing {
-		conn.CloseNow()
-		return nil, fmt.Errorf("expected ping message, got %s", pingMsg.Type)
-	}
-	p, err := pingMsg.Parse()
-	if err != nil {
-		conn.CloseNow()
-		return nil, fmt.Errorf("failed to parse ping: %w", err)
-	}
-	ping, ok := p.(*game.PingMessage)
-	if !ok {
-		conn.CloseNow()
-		return nil, fmt.Errorf("expected PingMessage payload, got %T", p)
+	var ping *game.PingMessage
+	for {
+		if err := wsjson.Read(ctx, conn, &pingMsg); err != nil {
+			conn.CloseNow()
+			return nil, fmt.Errorf("failed to read message: %w", err)
+		}
+		if pingMsg.Type == game.MsgTypeState {
+			continue
+		}
+		if pingMsg.Type != game.MsgTypePing {
+			conn.CloseNow()
+			return nil, fmt.Errorf("expected ping message, got %s", pingMsg.Type)
+		}
+
+		p, err := pingMsg.Parse()
+		if err != nil {
+			conn.CloseNow()
+			return nil, fmt.Errorf("failed to parse ping: %w", err)
+		}
+		var ok bool
+		ping, ok = p.(*game.PingMessage)
+		if !ok {
+			conn.CloseNow()
+			return nil, fmt.Errorf("expected PingMessage payload, got %T", p)
+		}
+		break
 	}
 
 	fmt.Printf("\t- Receive Ping message on table %s as %s\n", tableID, playerName)
