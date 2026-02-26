@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 
 // ServerState manages all active tables and WebSockets.
 type ServerState struct {
+	Address      string
 	mu           sync.RWMutex
 	Tables       map[string]*game.Table
 	TableClients map[string]map[*websocket.Conn]string // TableID -> Conn -> PlayerID
@@ -85,7 +87,7 @@ func (s *ServerState) HandleWS(w http.ResponseWriter, r *http.Request) {
 	_ = wsjson.Write(r.Context(), conn, pingMsg)
 
 	// Disconnect handler
-	defer s.leaveTable(tableID, conn)
+	defer s.leaveTable(table, conn)
 
 	// 2. Read loop
 	for {
@@ -136,18 +138,18 @@ func (s *ServerState) joinTable(tableID string, player *game.Player, conn *webso
 	}
 	s.TableClients[tableID][conn] = player.ID
 
-	s.broadcastStateLocked(tableID)
+	s.broadcastStateLocked(table)
 	if table.Started {
-		s.broadcastUpdateLocked(tableID, "")
+		s.broadcastUpdateLocked(table, "")
 	}
 	return table
 }
 
-func (s *ServerState) leaveTable(tableID string, conn *websocket.Conn) {
+func (s *ServerState) leaveTable(table *game.Table, conn *websocket.Conn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	clients, ok := s.TableClients[tableID]
+	clients, ok := s.TableClients[table.ID]
 	if !ok {
 		return
 	}
@@ -155,58 +157,40 @@ func (s *ServerState) leaveTable(tableID string, conn *websocket.Conn) {
 	playerID, ok := clients[conn]
 	if ok {
 		delete(clients, conn)
-		table := s.Tables[tableID]
-		if table != nil {
-			// Remove from players slice
-			for i, p := range table.Players {
-				if p.ID == playerID {
-					table.Players = append(table.Players[:i], table.Players[i+1:]...)
-					break
-				}
+		// Remove from players slice
+		for i, p := range table.Players {
+			if p.ID == playerID {
+				table.Players = slices.Delete(table.Players, i, i+1)
+				break
 			}
+		}
 
-			// If table is empty, we could delete it, but memory is small
-			if len(table.Players) == 0 {
-				delete(s.Tables, tableID)
-				delete(s.TableClients, tableID)
-			} else {
-				s.broadcastStateLocked(tableID)
-			}
+		// If table is empty, we could delete it, but memory is small
+		if len(table.Players) == 0 {
+			delete(s.Tables, table.ID)
+			delete(s.TableClients, table.ID)
+		} else {
+			s.broadcastStateLocked(table)
 		}
 	}
 }
 
-func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table, player *game.Player, msg game.WsMessage) {
+// tableHandleMessage handles messages from a player in a table.
+// It is called from the locked tableHandleMessage function.
+func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table, player *game.Player, wsMsg game.WsMessage) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	switch msg.Type {
-	case game.MsgTypeStart:
-		// Only creator (first player) can start
-		if len(table.Players) >= 2 && table.Players[0].ID == player.ID {
-			klog.Infof("tableHandleMessage: Creator %s starting game on table %s", player.Name, table.ID)
-			deck := game.GenerateStandardDeck()
-			deck.Shuffle()
+	msgAny, err := wsMsg.Parse()
+	if err != nil {
+		klog.Errorf("tableHandleMessage: Failed to parse message: %v", err)
+		return
+	}
+	switch msg := msgAny.(type) {
+	case *game.StartMessage:
+		s.handleGameStart(table, player, msg)
 
-			// 1. Initial Target Card
-			table.TargetCard = deck[0]
-			deck = deck[1:]
-
-			// 2. Distribute Hand
-			numPlayers := len(table.Players)
-			cardsPerPlayer := len(deck) / numPlayers
-			for i, p := range table.Players {
-				p.Hand = deck[i*cardsPerPlayer : (i+1)*cardsPerPlayer]
-				p.Score = len(p.Hand)
-			}
-
-			table.Started = true
-			table.Round = 1
-			s.broadcastStateLocked(table.ID)
-			s.broadcastUpdateLocked(table.ID, "")
-			s.broadcastPingLocked(table.ID)
-		}
-	case game.MsgTypeCancel:
+	case *game.CancelMessage:
 		// Only creator (first player) can cancel
 		if len(table.Players) > 0 && table.Players[0].ID == player.ID {
 			klog.Infof("tableHandleMessage: Creator %s cancelled table %s", player.Name, table.ID)
@@ -226,17 +210,8 @@ func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table
 			delete(s.Tables, table.ID)
 			delete(s.TableClients, table.ID)
 		}
-	case game.MsgTypePong:
-		p, err := msg.Parse()
-		if err != nil {
-			klog.Errorf("tableHandleMessage: Failed to parse pong message: %v", err)
-			return
-		}
-		pong, ok := p.(*game.PongMessage)
-		if !ok {
-			return
-		}
-		rtt := time.Now().UnixNano() - pong.ServerTime
+	case *game.PongMessage:
+		rtt := time.Now().UnixNano() - msg.ServerTime
 		player.Latency = time.Duration(rtt / 2)
 		klog.Infof("tableHandleMessage: Player %s latency: %v", player.Name, player.Latency)
 
@@ -247,75 +222,90 @@ func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table
 				break
 			}
 		}
-		s.broadcastStateLocked(table.ID)
-	case game.MsgTypeClick:
-		if !table.Started {
-			return
-		}
-		p, err := msg.Parse()
-		if err != nil {
-			klog.Errorf("tableHandleMessage: Failed to parse click message: %v", err)
-			return
-		}
-		clickMsg, ok := p.(*game.ClickMessage)
-		if !ok {
-			return
-		}
+		s.broadcastStateLocked(table)
+	case *game.ClickMessage:
+		s.handleClick(table, player, msg)
+	}
+}
 
-		if len(player.Hand) == 0 {
-			return // Cannot click if they have no cards
+func (s *ServerState) handleGameStart(table *game.Table, startingPlayer *game.Player, msg *game.StartMessage) {
+	_ = msg
+	// Only creator (first player) can start
+	if len(table.Players) < 2 && table.Players[0].ID != startingPlayer.ID {
+		klog.Errorf("handleGameStart: Not enough players to start game on table %s", table.ID)
+		return
+	}
+
+	deck := game.GenerateStandardDeck()
+	deck.Shuffle()
+
+	// 1. Initial Target Card
+	table.TargetCard = deck[0]
+	deck = deck[1:]
+
+	// 2. Distribute Hand
+	numPlayers := len(table.Players)
+	cardsPerPlayer := len(deck) / numPlayers
+	for i, p := range table.Players {
+		p.Hand = deck[i*cardsPerPlayer : (i+1)*cardsPerPlayer]
+		p.Score = len(p.Hand)
+	}
+
+	table.Started = true
+	table.Round = 1
+	s.broadcastStateLocked(table)
+	s.broadcastUpdateLocked(table, "")
+	s.broadcastPingLocked(table)
+}
+
+// handleClick message from player: it's called from the locked tableHandleMessage function.
+func (s *ServerState) handleClick(table *game.Table, player *game.Player, msg *game.ClickMessage) {
+	klog.Infof("handleClick: Player %s clicked symbol %d", player.Name, msg.Symbol)
+	if !table.Started {
+		klog.Errorf("handleClick: Player %s clicked symbol %d on non-started table", player.Name, msg.Symbol)
+		return
+	}
+	if len(player.Hand) == 0 {
+		klog.Errorf("handleClick: Player %s clicked symbol %d with no cards", player.Name, msg.Symbol)
+		return // Cannot click if they have no cards
+	}
+
+	// 1. Validate that the symbol exists in both the TargetCard and the player's top card.
+	validTarget := slices.Contains(table.TargetCard, msg.Symbol)
+	validTop := slices.Contains(player.Hand[0], msg.Symbol)
+	if !validTarget || !validTop {
+		klog.Errorf("tableHandleMessage: Player %s made an invalid click", player.Name)
+		// Ignore the click, relying on the frontend to handle the visual penalty.
+		return
+	}
+
+	// Calculate latency compensation
+	var maxLatency time.Duration
+	for _, p := range table.Players {
+		if p.Latency > maxLatency {
+			maxLatency = p.Latency
 		}
+	}
 
-		// 1. Validate that the symbol exists in both the TargetCard and the player's top card.
-		validTarget := false
-		for _, sym := range table.TargetCard {
-			if sym == clickMsg.Symbol {
-				validTarget = true
-				break
-			}
+	delay := max(maxLatency-player.Latency, 0)
+	processTime := time.Now().Add(delay)
+	klog.Infof("tableHandleMessage: Player %s valid click on %d. Delay %v, Target process %v", player.Name, msg.Symbol, delay, processTime)
+
+	// Check if we should override the pending click
+	if table.PendingClick == nil || processTime.Before(table.PendingClick.ProcessTime) {
+		table.PendingClick = &game.PendingClick{
+			PlayerID:    player.ID,
+			ProcessTime: processTime,
+			Symbol:      msg.Symbol,
+			Round:       table.Round,
 		}
-		validTop := false
-		for _, sym := range player.Hand[0] {
-			if sym == clickMsg.Symbol {
-				validTop = true
-				break
-			}
+		if table.ClickTimer != nil {
+			table.ClickTimer.Stop()
 		}
-
-		if !validTarget || !validTop {
-			klog.Infof("tableHandleMessage: Player %s made an invalid click", player.Name)
-			// Ignore the click, relying on the frontend to handle the visual penalty.
-			return
-		}
-
-		// Calculate latency compensation
-		var maxLatency time.Duration
-		for _, p := range table.Players {
-			if p.Latency > maxLatency {
-				maxLatency = p.Latency
-			}
-		}
-
-		delay := maxLatency - player.Latency
-		if delay < 0 {
-			delay = 0
-		}
-		processTime := time.Now().Add(delay)
-
-		klog.Infof("tableHandleMessage: Player %s valid click on %d. Delay %v, Target process %v", player.Name, clickMsg.Symbol, delay, processTime)
-
-		// Check if we should override the pending click
-		if table.PendingClick == nil || processTime.Before(table.PendingClick.ProcessTime) {
-			table.PendingClick = &game.PendingClick{
-				PlayerID:    player.ID,
-				ProcessTime: processTime,
-				Symbol:      clickMsg.Symbol,
-				Round:       table.Round,
-			}
-
-			if table.ClickTimer != nil {
-				table.ClickTimer.Stop()
-			}
+		if delay == 0 {
+			// Process click immediately.
+			s.processWinningClick(table.ID, processTime)
+		} else {
 			table.ClickTimer = time.AfterFunc(delay, func() {
 				s.processWinningClick(table.ID, processTime)
 			})
@@ -376,19 +366,14 @@ func (s *ServerState) processWinningClick(tableID string, expectedProcessTime ti
 
 	klog.Infof("processWinningClick: Player %s wins round %d on table %s! Discarded %d cards.", winner.Name, table.Round, tableID, numToDiscard)
 
-	s.broadcastStateLocked(tableID)
-	s.broadcastUpdateLocked(tableID, pc.PlayerID)
+	s.broadcastStateLocked(table)
+	s.broadcastUpdateLocked(table, pc.PlayerID)
 }
 
 // broadcastUpdateLocked broadcasts individual game updates (top card, target card) to each client.
 // Assumes s.mu is locked.
-func (s *ServerState) broadcastUpdateLocked(tableID string, winnerID string) {
-	table, ok := s.Tables[tableID]
-	if !ok || !table.Started {
-		return
-	}
-
-	for conn, playerID := range s.TableClients[tableID] {
+func (s *ServerState) broadcastUpdateLocked(table *game.Table, winnerID string) {
+	for conn, playerID := range s.TableClients[table.ID] {
 		// Find player hand
 		var player *game.Player
 		for _, p := range table.Players {
@@ -423,8 +408,7 @@ func (s *ServerState) broadcastUpdateLocked(tableID string, winnerID string) {
 }
 
 // broadcastStateLocked broadcasts table state to all connections. Assumes m.mu is locked.
-func (s *ServerState) broadcastStateLocked(tableID string) {
-	table := s.Tables[tableID]
+func (s *ServerState) broadcastStateLocked(table *game.Table) {
 	stateMsg, err := game.NewWsMessage(game.MsgTypeState, game.StateMessage{
 		Table: *table,
 	})
@@ -433,7 +417,7 @@ func (s *ServerState) broadcastStateLocked(tableID string) {
 		return
 	}
 
-	for conn := range s.TableClients[tableID] {
+	for conn := range s.TableClients[table.ID] {
 		// Non-blocking quick send, or run in goroutines if slow
 		go func(c *websocket.Conn, tm game.WsMessage) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -445,12 +429,12 @@ func (s *ServerState) broadcastStateLocked(tableID string) {
 
 // broadcastPingLocked sends a ping to all connections on the table to measure latency.
 // Assumes s.mu is locked.
-func (s *ServerState) broadcastPingLocked(tableID string) {
+func (s *ServerState) broadcastPingLocked(table *game.Table) {
 	pingMsg, _ := game.NewWsMessage(game.MsgTypePing, game.PingMessage{
 		ServerTime: time.Now().UnixNano(),
 	})
 
-	for conn := range s.TableClients[tableID] {
+	for conn := range s.TableClients[table.ID] {
 		go func(c *websocket.Conn, pm game.WsMessage) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 			defer cancel()
@@ -486,20 +470,7 @@ func (s *ServerState) HandleTestGame(w http.ResponseWriter, r *http.Request) {
 	table.Players = append(table.Players, moe, larry, curly)
 
 	// Start game
-	deck := game.GenerateStandardDeck()
-	deck.Shuffle()
-
-	table.TargetCard = deck[0]
-	deck = deck[1:]
-
-	numPlayers := len(table.Players)
-	cardsPerPlayer := len(deck) / numPlayers
-	for i, p := range table.Players {
-		p.Hand = deck[i*cardsPerPlayer : (i+1)*cardsPerPlayer]
-		p.Score = len(p.Hand)
-	}
-	table.Started = true
-	table.Round = 1
+	s.handleGameStart(table, moe, &game.StartMessage{})
 
 	// Set cookie for Moe
 	moeJSON, err := json.Marshal(moe)
@@ -513,5 +484,6 @@ func (s *ServerState) HandleTestGame(w http.ResponseWriter, r *http.Request) {
 		klog.Errorf("HandleTestGame: Failed to marshal Moe: %v", err)
 	}
 
-	http.Redirect(w, r, "/table/"+tableID, http.StatusSeeOther)
+	// Is this needed?
+	// http.Redirect(w, r, "/table/"+tableID, http.StatusSeeOther)
 }
