@@ -26,6 +26,7 @@ type Game struct {
 	matchedSymbol int
 	glowRed       bool
 	glowYellow    bool
+	winnerShineID string
 	lastTopCard   string
 	lastRound     int
 
@@ -59,6 +60,18 @@ func (g *Game) OnMount(ctx app.Context) {
 					} else {
 						State.PlaySound("/web/sounds/lost-tie.mp3")
 					}
+				}
+
+				// Shine the winner for 1 second
+				if State.WinnerID != "" {
+					g.winnerShineID = State.WinnerID
+					klog.Infof("Game component: Winner shine set for player %s (current player: %s)", g.winnerShineID, State.Player.ID)
+					time.AfterFunc(WinnerShineDuration, func() {
+						ctx.Dispatch(func(ctx app.Context) {
+							klog.Infof("Game component: Winner shine cleared")
+							g.winnerShineID = ""
+						})
+					})
 				}
 
 				g.actionPending = false
@@ -150,6 +163,7 @@ func (g *Game) onToggleSound(ctx app.Context, e app.Event) {
 
 const PenaltyDuration = 2 * time.Second
 const GlowDuration = 500 * time.Millisecond
+const WinnerShineDuration = 2 * time.Second
 
 func (g *Game) onSymbolClick(ctx app.Context, symbol int) {
 	if g.actionPending {
@@ -303,6 +317,13 @@ func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 	return app.Raw(sb.String())
 }
 
+// applyShineStyles applies golden glow inline styles to an element.
+func applyShineStyles(elem app.HTMLLi) app.HTMLLi {
+	return elem.
+		Style("background-color", "rgba(255, 215, 0, 0.25)").
+		Style("box-shadow", "inset 0 0 12px 4px rgba(255, 215, 0, 0.6), 0 0 15px 5px rgba(255, 215, 0, 0.4)")
+}
+
 func (g *Game) renderPlayerList(players []*game.Player) app.UI {
 	var listItems []app.UI
 	for _, p := range players {
@@ -315,7 +336,11 @@ func (g *Game) renderPlayerList(players []*game.Player) app.UI {
 		} else {
 			text = fmt.Sprintf("%s: %d cards left ...", p.Name, p.Score)
 		}
-		listItems = append(listItems, app.Li().Class("player-item-game").Body(
+		li := app.Li().Class("player-item-game")
+		if p.ID == g.winnerShineID {
+			li = applyShineStyles(li)
+		}
+		listItems = append(listItems, li.Body(
 			app.Img().
 				Src(fmt.Sprintf("/web/images/symbol_%02d.png", p.Symbol)).
 				Style("width", "32px").Style("height", "32px"),
@@ -406,12 +431,20 @@ func (g *Game) Render() app.UI {
 			app.Div().Class("game-column").Body(
 				// Top: Current Player's info and Card (70%)
 				app.Div().Class("column-70").Class("card-container").Body(
-					app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "0.5rem").Style("margin-bottom", "0.5rem").Body(
-						app.Img().
-							Src(fmt.Sprintf("/web/images/symbol_%02d.png", currentPlayer.Symbol)).
-							Style("width", "32px").Style("height", "32px"),
-						app.Strong().Text(playerInfoText),
-					),
+					func() app.UI {
+						div := app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "0.5rem").Style("margin-bottom", "0.5rem").Style("padding", "0.5rem").Style("border-radius", "8px")
+						if currentPlayer.ID == g.winnerShineID {
+							div = div.
+								Style("background-color", "rgba(255, 215, 0, 0.25)").
+								Style("box-shadow", "inset 0 0 12px 4px rgba(255, 215, 0, 0.6), 0 0 15px 5px rgba(255, 215, 0, 0.4)")
+						}
+						return div.Body(
+							app.Img().
+								Src(fmt.Sprintf("/web/images/symbol_%02d.png", currentPlayer.Symbol)).
+								Style("width", "32px").Style("height", "32px"),
+							app.Strong().Text(playerInfoText),
+						)
+					}(),
 					playerCardArea,
 				),
 				// Bottom: Other players list - second half (30%)

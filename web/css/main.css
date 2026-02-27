@@ -17,7 +17,8 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 2rem;
-    height: calc(100vh - 8rem); /* Adjusted for better fit */
+    height: calc(100vh - 8rem);
+    /* Adjusted for better fit */
     margin-top: 1rem;
     overflow: hidden;
 }
@@ -29,7 +30,8 @@ body {
 }
 
 .column-70 {
-    flex: 7; /* 70% height */
+    flex: 7;
+    /* 70% height */
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -38,7 +40,8 @@ body {
 }
 
 .column-30 {
-    flex: 3; /* 30% height */
+    flex: 3;
+    /* 30% height */
     overflow-y: auto;
     min-height: 0;
 }
@@ -66,4 +69,29 @@ body {
     border-radius: 8px;
     margin-bottom: 0.5rem;
     box-shadow: var(--pico-card-box-shadow);
+    transition: box-shadow 0.3s ease-in-out, background-color 0.3s ease-in-out;
+}
+
+@keyframes winner-shine {
+    0% {
+        box-shadow: 0 0 10px 4px rgba(255, 215, 0, 0.7), 0 0 30px 10px rgba(255, 255, 200, 0.4);
+        background-color: rgba(255, 215, 0, 0.15);
+    }
+
+    50% {
+        box-shadow: 0 0 25px 12px rgba(255, 215, 0, 1.0), 0 0 60px 20px rgba(255, 255, 255, 0.6);
+        background-color: rgba(255, 215, 0, 0.35);
+    }
+
+    100% {
+        box-shadow: 0 0 10px 4px rgba(255, 215, 0, 0.7), 0 0 30px 10px rgba(255, 255, 200, 0.4);
+        background-color: rgba(255, 215, 0, 0.15);
+    }
+}
+
+.player-shine {
+    animation: winner-shine 0.5s ease-in-out 2;
+    box-shadow: 0 0 20px 8px rgba(255, 215, 0, 0.8), 0 0 50px 15px rgba(255, 255, 200, 0.5) !important;
+    background-color: rgba(255, 215, 0, 0.25) !important;
+    border-radius: 12px;
 }
