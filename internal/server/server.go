@@ -103,6 +103,11 @@ func Run(ctx context.Context, addr string, started chan<- *ServerState) error {
 	defaultHandler := &app.Handler{
 		Name:        "GoSpot",
 		Description: "A real-time matching game",
+		Icon: app.Icon{
+			Default: "/web/images/symbol_00.png",
+			Large:   "/web/images/symbol_00.png",
+			SVG:     "/web/images/symbol_00.png",
+		},
 		Styles: []string{
 			"/web/css/pico.min.css", // Load pico.css
 			"/web/css/main.css",     // Custom styles if any

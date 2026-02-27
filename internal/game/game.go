@@ -7,7 +7,7 @@ package game
 // used, and force the reload of the WASM on every restart (the reload
 // still only happens after the first page is loaded, so there is a delay).
 // This is useful during development.
-var Version = "v0.1.2"
+var Version = "v0.1.3"
 
 // BonusDiscards is the number of cards to discard when a player matches
 // a symbol in the card that also matches their own symbol.
