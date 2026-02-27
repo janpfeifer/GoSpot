@@ -55,7 +55,7 @@ func (g *Game) OnMount(ctx app.Context) {
 			if State.Round != g.lastRound {
 				// Round changed! Check if we were waiting for a result
 				if g.matchedSymbol != -1 {
-					if State.ScoringIDs[0] == State.Player.ID {
+					if len(State.ScoringIDs) > 0 && State.ScoringIDs[0] == State.Player.ID {
 						if g.matchedSymbol == State.Player.Symbol {
 							State.PlaySound("/web/sounds/bonus.mp3")
 						} else {
@@ -67,7 +67,7 @@ func (g *Game) OnMount(ctx app.Context) {
 				}
 
 				// If someone else matched player's symbol, play bonus sound.
-				if slices.Contains(State.ScoringIDs[1:], State.Player.ID) {
+				if len(State.ScoringIDs) > 1 && slices.Contains(State.ScoringIDs[1:], State.Player.ID) {
 					State.PlaySound("/web/sounds/bonus.mp3")
 				}
 

@@ -94,9 +94,9 @@ func (s *GlobalClientState) SyncMusic() {
 
 	var targetSrc string
 	if s.Table != nil && s.Table.Started {
-		targetSrc = "/web/sounds/Glimmering_Gauntlet.mp3"
+		targetSrc = "/web/sounds/Xylophonic_Cascade_extended.mp3"
 	} else {
-		targetSrc = "/web/sounds/Xylophonic_Cascade.mp3"
+		targetSrc = "/web/sounds/Glimmering_Gauntlet.mp3"
 	}
 
 	if s.musicStop == nil || s.musicSrc != targetSrc {
@@ -242,7 +242,11 @@ func (s *GlobalClientState) ConnectWS(tableID string) error {
 		s.Conn.CloseNow()
 	}
 
-	wsURL := fmt.Sprintf("ws://%s/ws", app.Window().URL().Host)
+	scheme := "ws"
+	if app.Window().URL().Scheme == "https" {
+		scheme = "wss"
+	}
+	wsURL := fmt.Sprintf("%s://%s/ws", scheme, app.Window().URL().Host)
 	klog.Infof("ConnectWS: Connecting to %s (Table: %s)", wsURL, tableID)
 
 	// We use a context that lasts for the duration of the connection setup.

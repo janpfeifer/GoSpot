@@ -23,7 +23,6 @@ func TestLatencyCompensationClick(t *testing.T) {
 		startAddr := serverState.Address
 
 		const tableName = "test_table"
-
 		wsURL := "ws://" + startAddr + "/ws"
 
 		var conn1, conn2 *websocket.Conn
