@@ -3,7 +3,6 @@ package frontend
 import (
 	"fmt"
 	"math/rand"
-	"time"
 
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
 	"k8s.io/klog/v2"
@@ -45,7 +44,6 @@ func (h *Home) onCreateTable(ctx app.Context, e app.Event) {
 	e.PreventDefault()
 	if h.TableName == "" {
 		// generate random suffix or table name
-		rand.Seed(time.Now().UnixNano())
 		h.TableName = fmt.Sprintf("Table-%d", rand.Intn(10000))
 	}
 
