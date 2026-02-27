@@ -332,10 +332,12 @@ func (g *Game) renderPlayerList(players []*game.Player) app.UI {
 	var listItems []app.UI
 	for _, p := range players {
 		var text string
+		var crown app.UI = app.Text("")
+
 		if p.Score == 0 {
 			text = fmt.Sprintf("%s: %s", p.Name, p.TimeTaken)
 			if p.IsWinner {
-				text = "👑 " + text
+				crown = app.Span().Class("system-font").Text("👑 ")
 			}
 		} else {
 			text = fmt.Sprintf("%s: %d cards left ...", p.Name, p.Score)
@@ -348,6 +350,7 @@ func (g *Game) renderPlayerList(players []*game.Player) app.UI {
 			app.Img().
 				Src(fmt.Sprintf("/web/images/symbol_%02d.png", p.Symbol)).
 				Style("width", "32px").Style("height", "32px"),
+			crown,
 			app.Span().Text(text),
 		))
 	}
@@ -410,11 +413,13 @@ func (g *Game) Render() app.UI {
 
 		var playerCardArea app.UI
 		var playerInfoText string
+		var playerInfoCrown app.UI = app.Text("")
+
 		if currentPlayer.Score == 0 {
 			playerCardArea = app.Img().Src("/web/images/win.png").Style("max-width", "520px").Style("max-height", "100%").Style("width", "100%").Style("height", "auto").Style("aspect-ratio", "1 / 1").Style("object-fit", "contain")
 			playerInfoText = fmt.Sprintf("%s (%s)", currentPlayer.Name, currentPlayer.TimeTaken)
 			if currentPlayer.IsWinner {
-				playerInfoText = "👑 " + playerInfoText
+				playerInfoCrown = app.Span().Class("system-font").Text("👑 ")
 			}
 		} else {
 			playerCardArea = g.renderCard(State.TopCard, 520, true)
@@ -446,6 +451,7 @@ func (g *Game) Render() app.UI {
 							app.Img().
 								Src(fmt.Sprintf("/web/images/symbol_%02d.png", currentPlayer.Symbol)).
 								Style("width", "32px").Style("height", "32px"),
+							playerInfoCrown,
 							app.Strong().Text(playerInfoText),
 						)
 					}(),
