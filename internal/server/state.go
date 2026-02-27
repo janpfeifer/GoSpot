@@ -150,7 +150,7 @@ func (s *ServerState) joinTable(tableID string, playerName, playerID string, con
 
 	s.broadcastStateLocked(table)
 	if table.Started {
-		s.broadcastUpdateLocked(table, "")
+		s.broadcastUpdateLocked(table, nil)
 	}
 	return table, player
 }
@@ -280,7 +280,7 @@ func (s *ServerState) handleGameStart(table *game.Table, startingPlayer *game.Pl
 	table.StartTime = time.Now()
 	table.Round = 1
 	s.broadcastStateLocked(table)
-	s.broadcastUpdateLocked(table, "")
+	s.broadcastUpdateLocked(table, nil)
 	s.broadcastPingLocked(table)
 }
 
@@ -330,97 +330,110 @@ func (s *ServerState) handleClick(table *game.Table, player *game.Player, msg *g
 		}
 		if delay == 0 {
 			// Process click immediately in a new goroutine to avoid deadlock.
-			go s.processWinningClick(table.ID, processTime)
+			go s.processWinningClick(table, processTime)
 		} else {
 			table.ClickTimer = time.AfterFunc(delay, func() {
-				s.processWinningClick(table.ID, processTime)
+				s.processWinningClick(table, processTime)
 			})
 		}
 	}
 }
 
 // processWinningClick is called when the delay timer for a winning click has expired.
-func (s *ServerState) processWinningClick(tableID string, expectedProcessTime time.Time) {
+func (s *ServerState) processWinningClick(table *game.Table, expectedProcessTime time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	table, ok := s.Tables[tableID]
-	if !ok || !table.Started {
+	if !table.Started {
 		return
 	}
 
-	pc := table.PendingClick
-	if pc == nil || !pc.ProcessTime.Equal(expectedProcessTime) {
+	click := table.PendingClick
+	if click == nil || !click.ProcessTime.Equal(expectedProcessTime) {
 		// Another click took precedence or it was already processed
 		return
 	}
 
 	// Double check the round
-	if pc.Round != table.Round {
+	if click.Round != table.Round {
 		return
 	}
 
 	// Find the winning player
-	var winner *game.Player
+	var clicker *game.Player
 	for _, p := range table.Players {
-		if p.ID == pc.PlayerID {
-			winner = p
+		if p.ID == click.PlayerID {
+			clicker = p
 			break
 		}
 	}
-
-	if winner == nil || len(winner.Hand) == 0 {
+	if clicker == nil || len(clicker.Hand) == 0 {
 		return
 	}
 
+	duration := time.Since(table.StartTime)
+	minutes := int(duration.Minutes())
+	seconds := int(duration.Seconds()) % 60
+	timeToClick := fmt.Sprintf("%02d:%02d", minutes, seconds)
+
 	// Discard cards (3 if matched player symbol, 1 otherwise)
+	scoringIDs := []string{clicker.ID}
+	var finishers []string // players who finished their hand with this click.
+
 	numToDiscard := 1
-	if pc.Symbol == winner.Symbol {
+	if click.Symbol == clicker.Symbol {
 		numToDiscard = game.BonusDiscards
 	}
-	if numToDiscard > len(winner.Hand) {
-		numToDiscard = len(winner.Hand)
+	if numToDiscard >= len(clicker.Hand) {
+		numToDiscard = len(clicker.Hand)
+		finishers = append(finishers, clicker.ID)
+		clicker.TimeTaken = timeToClick
 	}
 
 	// The target card becomes the last discarded card from the player's hand.
-	table.TargetCard = winner.Hand[numToDiscard-1]
-	winner.Hand = winner.Hand[numToDiscard:]
-	winner.Score = len(winner.Hand)
+	table.TargetCard = clicker.Hand[numToDiscard-1]
+	clicker.Hand = clicker.Hand[numToDiscard:]
+	clicker.Score = len(clicker.Hand)
 
-	// Check if winner has finished the game
-	if winner.Score == 0 {
-		duration := time.Since(table.StartTime)
-		minutes := int(duration.Minutes())
-		seconds := int(duration.Seconds()) % 60
-		winner.TimeTaken = fmt.Sprintf("%02d:%02d", minutes, seconds)
-		winner.IsWinner = false
+	// Give bonus discards to other players whose matching symbol was clicked
+	for _, p := range table.Players {
+		if p.ID == clicker.ID {
+			continue
+		}
+		if p.Symbol != click.Symbol || len(p.Hand) == 0 {
+			continue
+		}
 
-		// Check if they are the first winner
-		alreadyWon := false
-		for _, p := range table.Players {
-			if p.ID != winner.ID && p.TimeTaken != "" {
-				alreadyWon = true
-				break
-			}
+		// Issue bonus discard to player with matching symbol:
+		bonusDiscards := game.BonusDiscards
+		if bonusDiscards >= len(p.Hand) {
+			bonusDiscards = len(p.Hand)
+			finishers = append(finishers, p.ID)
+			p.TimeTaken = timeToClick
 		}
-		if !alreadyWon {
-			winner.IsWinner = true
-		}
-		klog.Infof("Player %s finished the game in %s", winner.Name, winner.TimeTaken)
+		p.Hand = p.Hand[bonusDiscards:]
+		p.Score = len(p.Hand)
+		scoringIDs = append(scoringIDs, p.ID)
 	}
 
+	// Check if any player finished the game, if they were the first.
+	if table.WinnerID == "" && len(finishers) > 0 {
+		// Break the tie randomly.
+		table.WinnerID = finishers[rand.Intn(len(finishers))]
+	}
 	table.Round++
 	table.PendingClick = nil // Reset
 
-	klog.Infof("processWinningClick: Player %s wins round %d on table %s! Discarded %d cards.", winner.Name, table.Round, tableID, numToDiscard)
+	klog.Infof("processWinningClick: Player %s wins round %d on table %s! Discarded %d cards.",
+		clicker.Name, table.Round, table.ID, numToDiscard)
 
 	s.broadcastStateLocked(table)
-	s.broadcastUpdateLocked(table, pc.PlayerID)
+	s.broadcastUpdateLocked(table, scoringIDs)
 }
 
 // broadcastUpdateLocked broadcasts individual game updates (top card, target card) to each client.
 // Assumes s.mu is locked.
-func (s *ServerState) broadcastUpdateLocked(table *game.Table, winnerID string) {
+func (s *ServerState) broadcastUpdateLocked(table *game.Table, scoringIDs []string) {
 	for conn, playerID := range s.TableClients[table.ID] {
 		// Find player hand
 		var player *game.Player
@@ -440,7 +453,7 @@ func (s *ServerState) broadcastUpdateLocked(table *game.Table, winnerID string) 
 			TargetCard: table.TargetCard,
 			TopCard:    topCard,
 			Round:      table.Round,
-			WinnerID:   winnerID,
+			ScoringIDs: scoringIDs,
 		})
 		if err != nil {
 			klog.Errorf("broadcastUpdateLocked: Failed to create update message: %v", err)

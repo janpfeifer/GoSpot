@@ -95,10 +95,14 @@ type StateMessage struct {
 
 // UpdateMessage is the payload for MsgTypeUpdate
 type UpdateMessage struct {
-	TargetCard []int  `json:"target_card"` // Current card on the table
-	TopCard    []int  `json:"top_card"`    // Player's top card
-	Round      int    `json:"round"`       // Current round number
-	WinnerID   string `json:"winner_id"`   // Player ID who won the previous round
+	TargetCard []int `json:"target_card"` // Current card on the table
+	TopCard    []int `json:"top_card"`    // Player's top card
+	Round      int   `json:"round"`       // Current round number
+
+	// ScoringIDs holds the IDs of the players that scored:
+	// The first one will always be the one that scored because they clicked on a matching symbols.
+	// The others are players whose "player symbol" matches the one clicked, they get the game.BonusDiscards.
+	ScoringIDs []string `json:"scoring_ids"`
 }
 
 // ClickMessage is the payload for MsgTypeClick

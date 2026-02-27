@@ -21,14 +21,14 @@ type Game struct {
 	Error  string
 
 	// Click state
-	actionPending bool
-	clickedSymbol int
-	matchedSymbol int
-	glowRed       bool
-	glowYellow    bool
-	winnerShineID string
-	lastTopCard   string
-	lastRound     int
+	actionPending  bool
+	clickedSymbol  int
+	matchedSymbol  int
+	glowRed        bool
+	glowYellow     bool
+	winnerShineIDs []string
+	lastTopCard    string
+	lastRound      int
 
 	onUpdate func()
 }
@@ -55,7 +55,7 @@ func (g *Game) OnMount(ctx app.Context) {
 			if State.Round != g.lastRound {
 				// Round changed! Check if we were waiting for a result
 				if g.matchedSymbol != -1 {
-					if State.WinnerID == State.Player.ID {
+					if State.ScoringIDs[0] == State.Player.ID {
 						if g.matchedSymbol == State.Player.Symbol {
 							State.PlaySound("/web/sounds/bonus.mp3")
 						} else {
@@ -66,14 +66,25 @@ func (g *Game) OnMount(ctx app.Context) {
 					}
 				}
 
+				// If someone else matched player's symbol, play bonus sound.
+				if slices.Contains(State.ScoringIDs[1:], State.Player.ID) {
+					State.PlaySound("/web/sounds/bonus.mp3")
+				}
+
 				// Shine the winner for 1 second
-				if State.WinnerID != "" {
-					g.winnerShineID = State.WinnerID
-					klog.Infof("Game component: Winner shine set for player %s (current player: %s)", g.winnerShineID, State.Player.ID)
+				for _, scoringPlayerID := range State.ScoringIDs {
+					if scoringPlayerID == "" {
+						continue
+					}
+					g.winnerShineIDs = append(g.winnerShineIDs, scoringPlayerID)
+					klog.Infof("Game component: Winner shine set for player %s (current player: %s)",
+						g.winnerShineIDs, State.Player.ID)
 					time.AfterFunc(WinnerShineDuration, func() {
 						ctx.Dispatch(func(ctx app.Context) {
 							klog.Infof("Game component: Winner shine cleared")
-							g.winnerShineID = ""
+							g.winnerShineIDs = slices.DeleteFunc(g.winnerShineIDs, func(id string) bool {
+								return id == scoringPlayerID
+							})
 						})
 					})
 				}
@@ -336,14 +347,14 @@ func (g *Game) renderPlayerList(players []*game.Player) app.UI {
 
 		if p.Score == 0 {
 			text = fmt.Sprintf("%s: %s", p.Name, p.TimeTaken)
-			if p.IsWinner {
+			if p.ID == g.State.WinnerID {
 				crown = app.Span().Class("system-font").Text("👑 ")
 			}
 		} else {
 			text = fmt.Sprintf("%s: %d cards left ...", p.Name, p.Score)
 		}
 		li := app.Li().Class("player-item-game")
-		if p.ID == g.winnerShineID {
+		if slices.Contains(g.winnerShineIDs, p.ID) {
 			li = applyShineStyles(li)
 		}
 		listItems = append(listItems, li.Body(
@@ -418,7 +429,7 @@ func (g *Game) Render() app.UI {
 		if currentPlayer.Score == 0 {
 			playerCardArea = app.Img().Src("/web/images/win.png").Style("max-width", "520px").Style("max-height", "100%").Style("width", "100%").Style("height", "auto").Style("aspect-ratio", "1 / 1").Style("object-fit", "contain")
 			playerInfoText = fmt.Sprintf("%s (%s)", currentPlayer.Name, currentPlayer.TimeTaken)
-			if currentPlayer.IsWinner {
+			if currentPlayer.ID == g.State.WinnerID {
 				playerInfoCrown = app.Span().Class("system-font").Text("👑 ")
 			}
 		} else {
@@ -442,7 +453,7 @@ func (g *Game) Render() app.UI {
 				app.Div().Class("column-70").Class("card-container").Body(
 					func() app.UI {
 						div := app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "0.5rem").Style("margin-bottom", "0.5rem").Style("padding", "0.5rem").Style("border-radius", "8px")
-						if currentPlayer.ID == g.winnerShineID {
+						if slices.Contains(g.winnerShineIDs, currentPlayer.ID) {
 							div = div.
 								Style("background-color", "rgba(255, 215, 0, 0.25)").
 								Style("box-shadow", "inset 0 0 12px 4px rgba(255, 215, 0, 0.6), 0 0 15px 5px rgba(255, 215, 0, 0.4)")

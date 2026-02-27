@@ -35,7 +35,7 @@ type GlobalClientState struct {
 	TopCard    []int
 	TargetCard []int
 	Round      int
-	WinnerID   string
+	ScoringIDs []string
 
 	// Listeners for state updates
 	Listeners map[string]func()
@@ -344,11 +344,12 @@ func (s *GlobalClientState) handleMessage(msg game.WsMessage) {
 			return
 		}
 
-		klog.Infof("handleMessage: Game update received. TopCard: %v, TargetCard: %v, Round: %d, Winner: %s", updateMsg.TopCard, updateMsg.TargetCard, updateMsg.Round, updateMsg.WinnerID)
+		klog.Infof("handleMessage: Game update received. TopCard: %v, TargetCard: %v, Round: %d, ScoringIDs: %v",
+			updateMsg.TopCard, updateMsg.TargetCard, updateMsg.Round, updateMsg.ScoringIDs)
 		State.TopCard = updateMsg.TopCard
 		State.TargetCard = updateMsg.TargetCard
 		State.Round = updateMsg.Round
-		State.WinnerID = updateMsg.WinnerID
+		State.ScoringIDs = updateMsg.ScoringIDs
 		s.Notify()
 
 	case game.MsgTypePing:
