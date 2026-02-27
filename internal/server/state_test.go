@@ -189,8 +189,8 @@ func TestHandleTestGame(t *testing.T) {
 		t.Errorf("Expected table name 'ThreeStooges', got '%s'", table.Name)
 	}
 
-	if len(table.Players) != 3 {
-		t.Errorf("Expected 3 players, got %d", len(table.Players))
+	if len(table.Players) != 10 {
+		t.Errorf("Expected 10 players, got %d", len(table.Players))
 	}
 
 	if !table.Started {
@@ -201,7 +201,12 @@ func TestHandleTestGame(t *testing.T) {
 		t.Errorf("Expected target card to be dealt")
 	}
 
-	playerNames := map[string]bool{"Moe": true, "Larry": true, "Curly": true}
+	playerNames := map[string]bool{
+		"Moe": true, "Larry": true, "Curly": true,
+		"Bugs Bunny": true, "Mickey Mouse": true, "SpongeBob": true,
+		"Homer Simpson": true, "Daffy Duck": true, "Donald Duck": true,
+		"Scooby-Doo": true,
+	}
 	for _, p := range table.Players {
 		if !playerNames[p.Name] {
 			t.Errorf("Unexpected player name: %s", p.Name)

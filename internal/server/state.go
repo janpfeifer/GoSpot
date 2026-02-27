@@ -491,7 +491,7 @@ func (s *ServerState) broadcastPingLocked(table *game.Table) {
 	}
 }
 
-// HandleTestGame sets up a test game with 3 players (Moe, Larry, Curly) and redirects to the table.
+// HandleTestGame sets up a test game with 10 players and redirects to the table.
 func (s *ServerState) HandleTestGame(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -502,7 +502,7 @@ func (s *ServerState) HandleTestGame(w http.ResponseWriter, r *http.Request) {
 	table := &game.Table{
 		ID:      tableID,
 		Name:    tableID,
-		Players: make([]*game.Player, 0, 3),
+		Players: make([]*game.Player, 0, 10),
 	}
 	s.Tables[tableID] = table
 
@@ -515,7 +515,15 @@ func (s *ServerState) HandleTestGame(w http.ResponseWriter, r *http.Request) {
 	larry := &game.Player{ID: "larry", Name: "Larry", Symbol: symbols[1]}
 	curly := &game.Player{ID: "curly", Name: "Curly", Symbol: symbols[2]}
 
-	table.Players = append(table.Players, moe, larry, curly)
+	bugs := &game.Player{ID: "bugs", Name: "Bugs Bunny", Symbol: symbols[3]}
+	mickey := &game.Player{ID: "mickey", Name: "Mickey Mouse", Symbol: symbols[4]}
+	spongebob := &game.Player{ID: "spongebob", Name: "SpongeBob", Symbol: symbols[5]}
+	homer := &game.Player{ID: "homer", Name: "Homer Simpson", Symbol: symbols[6]}
+	daffy := &game.Player{ID: "daffy", Name: "Daffy Duck", Symbol: symbols[7]}
+	donald := &game.Player{ID: "donald", Name: "Donald Duck", Symbol: symbols[8]}
+	scooby := &game.Player{ID: "scooby", Name: "Scooby-Doo", Symbol: symbols[9]}
+
+	table.Players = append(table.Players, moe, larry, curly, bugs, mickey, spongebob, homer, daffy, donald, scooby)
 
 	// Start game
 	s.handleGameStart(table, moe, &game.StartMessage{})
