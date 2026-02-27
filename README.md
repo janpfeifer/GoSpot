@@ -4,8 +4,10 @@
   <img src="https://raw.githubusercontent.com/janpfeifer/GoSpot/main/web/images/banner.png" alt="GoSpot Banner" style="height: 8em; border-radius: 8px;" />
 </div>
 
-# GoSpot
+# GoSpot - [Live GoSpot](https://gospot-487012134141.us-central1.run.app/)
 An online family card game where players need to quickly match images on their cards.
+
+Try it out now on [Live GoSpot](https://gospot-487012134141.us-central1.run.app/)
 
 ## How to Play
 
