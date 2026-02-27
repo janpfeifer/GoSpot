@@ -1,5 +1,19 @@
+html,
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
 body {
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+.game-page-main {
+    height: 100svh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 1rem !important;
 }
 
 .sound-icon {
@@ -14,13 +28,13 @@ body {
 }
 
 .game-grid {
+    flex: 1;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 2rem;
-    height: calc(100vh - 8rem);
-    /* Adjusted for better fit */
     margin-top: 1rem;
     overflow: hidden;
+    min-height: 0;
 }
 
 .game-column {

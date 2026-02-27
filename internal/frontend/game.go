@@ -230,7 +230,7 @@ func (g *Game) getGlowFilter(s int, isPlayerCard bool) string {
 
 func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 	if len(symbols) == 0 {
-		return app.Div().Class("card-svg").Style("width", fmt.Sprintf("%dpx", size)).Style("height", fmt.Sprintf("%dpx", size)).Body(
+		return app.Div().Class("card-svg").Style("width", "100%").Style("max-width", fmt.Sprintf("%dpx", size)).Style("aspect-ratio", "1 / 1").Body(
 			app.P().Style("text-align", "center").Text("No card"),
 		)
 	}
@@ -242,7 +242,7 @@ func (g *Game) renderCard(symbols []int, size int, isClickable bool) app.UI {
 	symbolSize := float64(size) / 5.0
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%[1]d" height="%[1]d" viewBox="0 0 %[1]d %[1]d" class="card-svg">`, size))
+	sb.WriteString(fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %[1]d %[1]d" class="card-svg" style="max-width: %[1]dpx; max-height: 100%%; width: 100%%; height: auto; aspect-ratio: 1 / 1;">`, size))
 
 	sb.WriteString(`<defs>
 		<filter id="glow-red" x="-50%" y="-50%" width="200%" height="200%">
@@ -411,7 +411,7 @@ func (g *Game) Render() app.UI {
 		var playerCardArea app.UI
 		var playerInfoText string
 		if currentPlayer.Score == 0 {
-			playerCardArea = app.Img().Src("/web/images/win.png").Style("width", "520px").Style("height", "520px")
+			playerCardArea = app.Img().Src("/web/images/win.png").Style("max-width", "520px").Style("max-height", "100%").Style("width", "100%").Style("height", "auto").Style("aspect-ratio", "1 / 1").Style("object-fit", "contain")
 			playerInfoText = fmt.Sprintf("%s (%s)", currentPlayer.Name, currentPlayer.TimeTaken)
 			if currentPlayer.IsWinner {
 				playerInfoText = "👑 " + playerInfoText
@@ -473,7 +473,7 @@ func (g *Game) Render() app.UI {
 		content = app.Div().Aria("busy", "true").Text("Connecting to game...")
 	}
 
-	return app.Main().Class("container").Body(
+	return app.Main().Class("container").Class("game-page-main").Body(
 		&TopBar{},
 		content,
 	)
