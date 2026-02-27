@@ -351,18 +351,24 @@ func (g *Game) renderPlayerList(players []*game.Player) app.UI {
 				crown = app.Span().Class("system-font").Text("👑 ")
 			}
 		} else {
-			text = fmt.Sprintf("%s: %d cards left ...", p.Name, p.Score)
+			text = fmt.Sprintf("%s (%d)", p.Name, p.Score)
 		}
 		li := app.Li().Class("player-item-game")
 		if slices.Contains(g.winnerShineIDs, p.ID) {
 			li = applyShineStyles(li)
 		}
+
+		var nameElem app.UI = app.Span().Text(text)
+		if State.Player != nil && p.ID == State.Player.ID {
+			nameElem = app.Strong().Text(text)
+		}
+
 		listItems = append(listItems, li.Body(
 			app.Img().
 				Src(fmt.Sprintf("/web/images/symbol_%02d.png", p.Symbol)).
 				Style("width", "32px").Style("height", "32px"),
 			crown,
-			app.Span().Text(text),
+			nameElem,
 		))
 	}
 	return app.Ul().Class("player-list-game").Body(listItems...)
@@ -393,22 +399,22 @@ func (g *Game) Render() app.UI {
 		content = app.Div().Aria("busy", "true").Text("Connecting to game...")
 	} else if g.State.Started {
 		// Render Game Page using SVG and HTML
-		otherPlayers := make([]*game.Player, 0)
+		var otherPlayers []*game.Player
+		var finishedPlayers []*game.Player
 		for _, p := range g.State.Players {
 			if p.ID != State.Player.ID {
-				otherPlayers = append(otherPlayers, p)
+				if p.Score == 0 {
+					finishedPlayers = append(finishedPlayers, p)
+				} else {
+					otherPlayers = append(otherPlayers, p)
+				}
 			}
 		}
 
-		topRightPlayers := make([]*game.Player, 0)
-		bottomLeftPlayers := make([]*game.Player, 0)
-		for i, p := range otherPlayers {
-			if i%2 == 0 {
-				topRightPlayers = append(topRightPlayers, p)
-			} else {
-				bottomLeftPlayers = append(bottomLeftPlayers, p)
-			}
-		}
+		slices.SortFunc(otherPlayers, func(a, b *game.Player) int {
+			return a.Score - b.Score
+		})
+		otherPlayers = append(otherPlayers, finishedPlayers...)
 
 		// Find current player in state to get up-to-date score and finished status
 		var currentPlayer *game.Player
@@ -423,18 +429,10 @@ func (g *Game) Render() app.UI {
 		}
 
 		var playerCardArea app.UI
-		var playerInfoText string
-		var playerInfoCrown app.UI = app.Text("")
-
 		if currentPlayer.Score == 0 {
 			playerCardArea = app.Img().Src("/web/images/win.png").Style("max-width", "520px").Style("max-height", "100%").Style("width", "100%").Style("height", "auto").Style("aspect-ratio", "1 / 1").Style("object-fit", "contain")
-			playerInfoText = fmt.Sprintf("%s (%s)", currentPlayer.Name, currentPlayer.TimeTaken)
-			if currentPlayer.ID == g.State.WinnerID {
-				playerInfoCrown = app.Span().Class("system-font").Text("👑 ")
-			}
 		} else {
 			playerCardArea = g.renderCard(State.TopCard, 520, true)
-			playerInfoText = fmt.Sprintf("%s (%d cards left)", currentPlayer.Name, currentPlayer.Score)
 		}
 
 		// Create New Game button if finished
@@ -447,43 +445,18 @@ func (g *Game) Render() app.UI {
 		}
 
 		content = app.Div().Class("game-grid").Body(
-			// First Column (70/30)
-			app.Div().Class("game-column").Body(
-				// Top: Current Player's info and Card (70%)
-				app.Div().Class("column-70").Class("card-container").Body(
-					func() app.UI {
-						div := app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "0.5rem").Style("margin-bottom", "0.5rem").Style("padding", "0.5rem").Style("border-radius", "8px")
-						if slices.Contains(g.winnerShineIDs, currentPlayer.ID) {
-							div = div.
-								Style("background-color", "rgba(255, 215, 0, 0.25)").
-								Style("box-shadow", "inset 0 0 12px 4px rgba(255, 215, 0, 0.6), 0 0 15px 5px rgba(255, 215, 0, 0.4)")
-						}
-						return div.Body(
-							app.Img().
-								Src(fmt.Sprintf("/web/images/symbol_%02d.png", currentPlayer.Symbol)).
-								Style("width", "32px").Style("height", "32px"),
-							playerInfoCrown,
-							app.Strong().Text(playerInfoText),
-						)
-					}(),
-					playerCardArea,
-				),
-				// Bottom: Other players list - second half (30%)
-				app.Div().Class("column-30").Body(
-					g.renderPlayerList(bottomLeftPlayers),
-					createNewGameBtn,
-				),
+			// First Column: Players List
+			app.Div().Class("game-column").Class("players-column").Body(
+				g.renderPlayerList(append([]*game.Player{currentPlayer}, otherPlayers...)),
+				createNewGameBtn,
 			),
-			// Second Column (30/70)
-			app.Div().Class("game-column").Body(
-				// Top: Other players list - first half (30%)
-				app.Div().Class("column-30").Body(
-					g.renderPlayerList(topRightPlayers),
-				),
-				// Bottom: Target Card (70%)
-				app.Div().Class("column-70").Class("card-container").Body(
-					g.renderCard(State.TargetCard, 520, false),
-				),
+			// Second Column: Player's Card
+			app.Div().Class("game-column").Class("card-column").Body(
+				playerCardArea,
+			),
+			// Third Column: Target Card
+			app.Div().Class("game-column").Class("card-column").Body(
+				g.renderCard(State.TargetCard, 520, false),
 			),
 		)
 	} else {

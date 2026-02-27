@@ -34,7 +34,7 @@ body {
 .game-grid {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: auto 1fr 1fr;
     gap: 2rem;
     margin-top: 1rem;
     overflow: hidden;
@@ -47,20 +47,17 @@ body {
     height: 100%;
 }
 
-.column-70 {
-    flex: 7;
-    /* 70% height */
+.players-column {
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 0.5rem;
+}
+
+.card-column {
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    min-height: 0;
-}
-
-.column-30 {
-    flex: 3;
-    /* 30% height */
-    overflow-y: auto;
     min-height: 0;
 }
 
