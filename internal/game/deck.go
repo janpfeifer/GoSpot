@@ -21,8 +21,7 @@ func GenerateDeck(order int) Deck {
 	// STEP 1: Generate the "Infinity Line" (Card 0)
 	// ---------------------------------------------------------
 	card := make([]int, 0, order+1)
-	card = append(card, 0)
-	for i := 1; i <= order; i++ {
+	for i := range order + 1 {
 		card = append(card, i)
 	}
 	deck = append(deck, card)
