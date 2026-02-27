@@ -51,17 +51,22 @@ func (s *GlobalClientState) ToggleSound() {
 }
 
 func (s *GlobalClientState) PlaySound(url string) {
-	if !s.SoundEnabled {
-		return
-	}
+	// SoundEnabled is only for the music, not for sound effects
+	// if !s.SoundEnabled {
+	// 	return
+	// }
+
 	// Create a new Audio element for the sound effect
 	audio := app.Window().Get("document").Call("createElement", "audio")
 	audio.Set("src", url)
-	audio.Set("volume", 1.0)
 
 	// Play the sound (fire and forget)
 	promise := audio.Call("play")
 	if promise.Truthy() {
+		promise.Call("then", app.FuncOf(func(this app.Value, args []app.Value) any {
+			audio.Set("volume", 1.0)
+			return nil
+		}))
 		promise.Call("catch", app.FuncOf(func(this app.Value, args []app.Value) any {
 			klog.Errorf("PlaySound: Failed to play %s: %v", url, args[0])
 			return nil
@@ -81,7 +86,7 @@ func (s *GlobalClientState) SyncMusic() {
 			s.musicStop = nil
 			if s.Music != nil && s.Music.Truthy() {
 				s.Music.Call("pause")
-				s.Music.Set("currentTime", 0)
+				s.Music.Call("remove")
 			}
 		}
 		return
@@ -99,7 +104,7 @@ func (s *GlobalClientState) SyncMusic() {
 			close(s.musicStop)
 			if s.Music != nil && s.Music.Truthy() {
 				s.Music.Call("pause")
-				s.Music.Set("currentTime", 0)
+				s.Music.Call("remove")
 			}
 		}
 		s.musicSrc = targetSrc
@@ -114,9 +119,10 @@ func (s *GlobalClientState) musicLoop(stop chan struct{}, src string) {
 		if s.Music == nil || !s.Music.Truthy() {
 			klog.Infof("musicLoop: Creating audio element")
 			s.Music = app.Window().Get("document").Call("createElement", "audio")
+			s.Music.Get("style").Set("display", "none")
+			app.Window().Get("document").Get("body").Call("appendChild", s.Music)
 		}
 		s.Music.Set("src", src)
-		s.Music.Set("volume", 0.2)
 
 		klog.Infof("musicLoop: Attempting to play...")
 		promise := s.Music.Call("play")
@@ -126,6 +132,7 @@ func (s *GlobalClientState) musicLoop(stop chan struct{}, src string) {
 			var onSuccess, onFailure app.Func
 			onSuccess = app.FuncOf(func(this app.Value, args []app.Value) any {
 				klog.Infof("musicLoop: Play started successfully")
+				s.Music.Set("volume", 0.04)
 				select {
 				case started <- true:
 				default:
