@@ -6,16 +6,22 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/janpfeifer/GoSpot/internal/game"
 	"github.com/janpfeifer/GoSpot/internal/server"
 )
 
 var (
-	flagAddr = flag.String("addr", "", "Address to listen on (default: auto-port on localhost)")
+	flagAddr    = flag.String("addr", "", "Address to listen on (default: auto-port on localhost)")
+	flagDevMode = flag.Bool("dev", false, "Enable development mode: set version to random value, "+
+		"to force WASM reload on every restart")
 )
 
 func main() {
 	flag.Parse()
 
+	if *flagDevMode {
+		game.Version = ""
+	}
 	started := make(chan *server.ServerState, 1)
 	ctx := context.Background()
 

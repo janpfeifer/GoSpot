@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/janpfeifer/GoSpot/internal/frontend"
+	"github.com/janpfeifer/GoSpot/internal/game"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
 	"k8s.io/klog/v2"
 )
@@ -106,6 +107,7 @@ func Run(ctx context.Context, addr string, started chan<- *ServerState) error {
 			"/web/css/pico.min.css", // Load pico.css
 			"/web/css/main.css",     // Custom styles if any
 		},
+		Version: game.Version,
 	}
 
 	mux := http.NewServeMux()

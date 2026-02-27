@@ -376,7 +376,7 @@ func (s *ServerState) processWinningClick(tableID string, expectedProcessTime ti
 	// Discard cards (3 if matched player symbol, 1 otherwise)
 	numToDiscard := 1
 	if pc.Symbol == winner.Symbol {
-		numToDiscard = 3
+		numToDiscard = game.BonusDiscards
 	}
 	if numToDiscard > len(winner.Hand) {
 		numToDiscard = len(winner.Hand)

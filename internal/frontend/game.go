@@ -56,7 +56,11 @@ func (g *Game) OnMount(ctx app.Context) {
 				// Round changed! Check if we were waiting for a result
 				if g.matchedSymbol != -1 {
 					if State.WinnerID == State.Player.ID {
-						State.PlaySound("/web/sounds/matched.mp3")
+						if g.matchedSymbol == State.Player.Symbol {
+							State.PlaySound("/web/sounds/bonus.mp3")
+						} else {
+							State.PlaySound("/web/sounds/matched.mp3")
+						}
 					} else {
 						State.PlaySound("/web/sounds/lost-tie.mp3")
 					}
