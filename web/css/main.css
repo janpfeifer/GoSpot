@@ -13,10 +13,12 @@ body {
     height: 100svh;
     display: flex;
     flex-direction: column;
-    padding-bottom: 1rem !important;
+    padding-bottom: 0px;
+    padding-top: 0px;
 }
 
-.sound-icon {
+.sound-icon,
+.system-font {
     font-family: system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     font-size: 1.2rem;
 }
