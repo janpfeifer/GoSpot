@@ -1,7 +1,7 @@
 
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/janpfeifer/GoSpot/main/web/images/banner.png" alt="GoSpot Banner" style="height: 8em; border-radius: 8px;" />
+  <img src="https://raw.githubusercontent.com/janpfeifer/GoSpot/main/web/images/banner.png" alt="GoSpot Banner" style="height: 16em; border-radius: 8px;" />
 </div>
 
 # GoSpot - [Live GoSpot](https://gospot-487012134141.us-central1.run.app/)
