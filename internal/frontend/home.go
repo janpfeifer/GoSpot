@@ -20,7 +20,9 @@ func (h *Home) OnMount(ctx app.Context) {
 	klog.V(1).Infof("Home: OnMount called")
 	h.login = &Login{}
 	if h.TableName == "" {
-		h.TableName = game.RandomTableName()
+		ctx.Dispatch(func(ctx app.Context) {
+			h.TableName = game.RandomTableName()
+		})
 	}
 	State.Listeners["home"] = func() {
 		ctx.Dispatch(func(ctx app.Context) {})
@@ -88,6 +90,10 @@ func (h *Home) Render() app.UI {
 		return h.login
 	}
 
+	if h.TableName == "" {
+		h.TableName = game.RandomTableName()
+	}
+
 	return app.Main().Class("container").Body(
 		&TopBar{ShowLogout: true},
 		app.Article().Body(
@@ -105,8 +111,8 @@ func (h *Home) Render() app.UI {
 					Value(h.TableName).
 					OnInput(h.onTableNameChange),
 				app.Div().Class("grid").Body(
-					app.Button().Type("submit").Text("Create Table"),
-					app.Button().Class("secondary outline").Text("Create Solo Game").OnClick(h.onCreateSoloGame),
+					app.Button().Type("submit").Style("height", "100%").Style("width", "100%").Text("Create Table"),
+					app.Button().Type("button").Class("secondary outline").Style("height", "100%").Style("width", "100%").Text("Create Solo Game").OnClick(h.onCreateSoloGame),
 				),
 			),
 		),
