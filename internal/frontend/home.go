@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 
+	"github.com/janpfeifer/GoSpot/internal/game"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
 	"k8s.io/klog/v2"
 )
@@ -18,6 +19,9 @@ type Home struct {
 func (h *Home) OnMount(ctx app.Context) {
 	klog.V(1).Infof("Home: OnMount called")
 	h.login = &Login{}
+	if h.TableName == "" {
+		h.TableName = game.RandomTableName()
+	}
 	State.Listeners["home"] = func() {
 		ctx.Dispatch(func(ctx app.Context) {})
 	}
@@ -48,6 +52,12 @@ func (h *Home) onCreateTable(ctx app.Context, e app.Event) {
 	}
 
 	ctx.Navigate("/table/" + h.TableName)
+}
+
+func (h *Home) onCreateSoloGame(ctx app.Context, e app.Event) {
+	e.PreventDefault()
+	soloName := fmt.Sprintf("Solo-%d", rand.Intn(1000000))
+	ctx.Navigate("/table/" + soloName)
 }
 
 func (h *Home) onLogout(ctx app.Context, e app.Event) {
@@ -94,7 +104,10 @@ func (h *Home) Render() app.UI {
 					Placeholder("e.g. My Awesome Table").
 					Value(h.TableName).
 					OnInput(h.onTableNameChange),
-				app.Button().Type("submit").Text("Create Table"),
+				app.Div().Class("grid").Body(
+					app.Button().Type("submit").Text("Create Table"),
+					app.Button().Class("secondary outline").Text("Create Solo Game").OnClick(h.onCreateSoloGame),
+				),
 			),
 		),
 	)
