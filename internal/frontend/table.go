@@ -17,11 +17,12 @@ import (
 // Table represents the lobby for a specific game room
 type Table struct {
 	app.Compo
-	TableID       string
-	State         *game.Table
-	Error         string
-	showSoloModal bool
-	randomSymbol  int
+	TableID         string
+	State           *game.Table
+	Error           string
+	showSoloModal   bool
+	soloModalShown  bool // Track if we have already auto-shown it
+	randomSymbol    int
 
 	onUpdate func()
 }
@@ -35,6 +36,7 @@ func (t *Table) OnMount(ctx app.Context) {
 	klog.Infof("Table component: OnMount called")
 	t.State = State.Table
 	t.showSoloModal = false
+	t.soloModalShown = false
 	t.randomSymbol = rand.Intn(57) // 0 to 56
 	t.onUpdate = func() {
 		klog.Infof("Table component: Notify received")
@@ -43,6 +45,13 @@ func (t *Table) OnMount(ctx app.Context) {
 			t.Error = State.Error
 			if t.State != nil {
 				klog.Infof("Table component: State updated. Player count: %d", len(t.State.Players))
+
+				// Automatically show solo modal if this is a "Solo-" game and it's our first time noticing it
+				if !t.soloModalShown && len(t.State.Players) == 1 && strings.HasPrefix(t.TableID, "Solo-") {
+					t.soloModalShown = true
+					t.showSoloModal = true
+				}
+
 				if t.State.Started {
 					ctx.Navigate("/game/" + t.TableID)
 				}
