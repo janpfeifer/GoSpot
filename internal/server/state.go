@@ -260,8 +260,8 @@ func (s *ServerState) tableHandleMessage(conn *websocket.Conn, table *game.Table
 func (s *ServerState) handleGameStart(table *game.Table, startingPlayer *game.Player, msg *game.StartMessage) {
 	_ = msg
 	// Only creator (first player) can start
-	if len(table.Players) < 2 && table.Players[0].ID != startingPlayer.ID {
-		klog.Errorf("handleGameStart: Not enough players to start game on table %s", table.ID)
+	if len(table.Players) > 0 && table.Players[0].ID != startingPlayer.ID {
+		klog.Errorf("handleGameStart: Only creator can start game on table %s", table.ID)
 		return
 	}
 
@@ -274,10 +274,16 @@ func (s *ServerState) handleGameStart(table *game.Table, startingPlayer *game.Pl
 
 	// 2. Distribute Hand
 	numPlayers := len(table.Players)
-	cardsPerPlayer := len(deck) / numPlayers
-	for i, p := range table.Players {
-		p.Hand = deck[i*cardsPerPlayer : (i+1)*cardsPerPlayer]
-		p.Score = len(p.Hand)
+	if numPlayers == 1 {
+		// Single-player mode: Give exactly 10 cards
+		table.Players[0].Hand = deck[:10]
+		table.Players[0].Score = 10
+	} else {
+		cardsPerPlayer := len(deck) / numPlayers
+		for i, p := range table.Players {
+			p.Hand = deck[i*cardsPerPlayer : (i+1)*cardsPerPlayer]
+			p.Score = len(p.Hand)
+		}
 	}
 
 	table.Started = true

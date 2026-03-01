@@ -10,12 +10,18 @@ import (
 	"k8s.io/klog/v2"
 )
 
+import (
+	"math/rand"
+)
+
 // Table represents the lobby for a specific game room
 type Table struct {
 	app.Compo
-	TableID string
-	State   *game.Table
-	Error   string
+	TableID       string
+	State         *game.Table
+	Error         string
+	showSoloModal bool
+	randomSymbol  int
 
 	onUpdate func()
 }
@@ -28,6 +34,8 @@ func (t *Table) OnAppUpdate(ctx app.Context) {
 func (t *Table) OnMount(ctx app.Context) {
 	klog.Infof("Table component: OnMount called")
 	t.State = State.Table
+	t.showSoloModal = false
+	t.randomSymbol = rand.Intn(57) // 0 to 56
 	t.onUpdate = func() {
 		klog.Infof("Table component: Notify received")
 		ctx.Dispatch(func(ctx app.Context) {
@@ -92,6 +100,15 @@ func (t *Table) onCopyURL(ctx app.Context, e app.Event) {
 }
 
 func (t *Table) onStart(ctx app.Context, e app.Event) {
+	if t.State != nil && len(t.State.Players) == 1 {
+		t.showSoloModal = true
+	} else {
+		State.SendStart()
+	}
+}
+
+func (t *Table) onReady(ctx app.Context, e app.Event) {
+	t.showSoloModal = false
 	State.SendStart()
 }
 
@@ -148,13 +165,13 @@ func (t *Table) Render() app.UI {
 		}
 
 		isCreator := len(t.State.Players) > 0 && t.State.Players[0].ID == State.Player.ID
-		canStart := len(t.State.Players) >= 2
+		canStart := len(t.State.Players) >= 1 // allow starting with 1 player
 
 		var footer app.UI
 		if isCreator {
 			var waitingMsg app.UI = app.Text("")
-			if !canStart {
-				waitingMsg = app.P().Class("ins").Style("text-align", "center").Text("Waiting for at least 2 players to start...")
+			if len(t.State.Players) == 1 {
+				waitingMsg = app.P().Class("ins").Style("text-align", "center").Text("Waiting for more players... or play solo!")
 			}
 			footer = app.Footer().Body(
 				waitingMsg,
@@ -179,7 +196,30 @@ func (t *Table) Render() app.UI {
 			)
 		}
 
+
+		var soloModal app.UI
+		if t.showSoloModal {
+			soloModal = app.Dialog().Open(true).Body(
+				app.Article().Body(
+					app.Header().Text("Solo Game"),
+					app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "1rem").Body(
+						app.Img().
+							Src(fmt.Sprintf("/web/images/symbol_%02d.png", t.randomSymbol)).
+							Style("width", "8em").
+							Style("height", "8em"),
+						app.P().Text("You are playing against the clock. Try to discard 10 cards as fast as you can!"),
+					),
+					app.Footer().Body(
+						app.Button().Text("Ready").OnClick(t.onReady),
+					),
+				),
+			)
+		} else {
+			soloModal = app.Text("")
+		}
+
 		content = app.Div().Body(
+			soloModal,
 			app.Div().Class("grid").Body(
 				app.Div().Body(
 					app.H3().Text(fmt.Sprintf("Table: %s", t.TableID)),
