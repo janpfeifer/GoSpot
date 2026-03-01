@@ -18,6 +18,7 @@ Welcome to **GoSpot**! <img src="https://raw.githubusercontent.com/janpfeifer/Go
 - **Spot it! <img src="web/images/symbol_33.png" height="64" style="vertical-align: middle">**: As soon as you see the matching symbol between your card and the target card, click it as quickly as possible! 
 - **Discard & Repeat <img src="https://raw.githubusercontent.com/janpfeifer/GoSpot/main/web/images/symbol_45.png" height="64" style="vertical-align: middle">**: If you're the first to click the right symbol, your top card moves to the middle and becomes the *new* target card for everyone.
 - **Winning <img src="https://raw.githubusercontent.com/janpfeifer/GoSpot/main/web/images/symbol_56.png" height="64" style="vertical-align: middle">**: The first player to get rid of all their cards wins the game!
+- **Single Player <img src="https://raw.githubusercontent.com/janpfeifer/GoSpot/main/web/images/symbol_14.png" height="64" style="vertical-align: middle">**: You can also play single-player mode against the clock!
 
 ### Special Rules
 
