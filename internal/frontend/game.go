@@ -3,6 +3,7 @@ package frontend
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"net/url"
 	"slices"
 	"strings"
@@ -19,6 +20,9 @@ type Game struct {
 	GameID string
 	State  *game.Table
 	Error  string
+
+	showSoloModal bool
+	randomSymbol  int
 
 	// Click state
 	actionPending  bool
@@ -41,6 +45,8 @@ func (g *Game) OnAppUpdate(ctx app.Context) {
 func (g *Game) OnMount(ctx app.Context) {
 	klog.Infof("Game component: OnMount called")
 	g.State = State.Table
+	g.showSoloModal = false
+	g.randomSymbol = rand.Intn(57)
 	g.clickedSymbol = -1
 	g.matchedSymbol = -1
 	g.lastTopCard = fmt.Sprintf("%v", State.TopCard)
@@ -174,6 +180,11 @@ func (g *Game) OnNav(ctx app.Context) {
 func (g *Game) onToggleSound(ctx app.Context, e app.Event) {
 	e.PreventDefault()
 	State.ToggleSound()
+}
+
+func (g *Game) onReady(ctx app.Context, e app.Event) {
+	g.showSoloModal = false
+	State.SendStart()
 }
 
 const PenaltyDuration = 2 * time.Second
@@ -436,8 +447,15 @@ func (g *Game) Render() app.UI {
 		}
 
 		// Create New Game button if finished
+		var tryAgainBtn app.UI
 		var createNewGameBtn app.UI
 		if currentPlayer.Score == 0 {
+			if len(g.State.Players) == 1 {
+				tryAgainBtn = app.Button().Text("Try Again!").OnClick(func(ctx app.Context, e app.Event) {
+					g.showSoloModal = true
+					g.randomSymbol = rand.Intn(57)
+				}).Style("margin-top", "1rem")
+			}
 			createNewGameBtn = app.Button().Text("Create New Game").OnClick(func(ctx app.Context, e app.Event) {
 				State.Player.Score = 0 // Reset local score logic just in case, though navigation handles it
 				ctx.Navigate("/")
@@ -448,6 +466,7 @@ func (g *Game) Render() app.UI {
 			// First Column: Players List
 			app.Div().Class("game-column").Class("players-column").Body(
 				g.renderPlayerList(append([]*game.Player{currentPlayer}, otherPlayers...)),
+				tryAgainBtn,
 				createNewGameBtn,
 			),
 			// Second Column: Player's Card
@@ -463,8 +482,30 @@ func (g *Game) Render() app.UI {
 		content = app.Div().Aria("busy", "true").Text("Connecting to game...")
 	}
 
+	var soloModal app.UI
+	if g.showSoloModal {
+		soloModal = app.Dialog().Open(true).Body(
+			app.Article().Body(
+				app.Header().Text("Solo Game"),
+				app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "1rem").Body(
+					app.Img().
+						Src(fmt.Sprintf("/web/images/symbol_%02d.png", g.randomSymbol)).
+						Style("width", "8em").
+						Style("height", "8em"),
+					app.P().Text("You are playing against the clock. Try to discard 10 cards as fast as you can!"),
+				),
+				app.Footer().Body(
+					app.Button().Text("Ready").OnClick(g.onReady),
+				),
+			),
+		)
+	} else {
+		soloModal = app.Text("")
+	}
+
 	return app.Main().Class("container").Class("game-page-main").Body(
 		&TopBar{},
+		soloModal,
 		content,
 	)
 }

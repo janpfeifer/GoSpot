@@ -265,6 +265,18 @@ func (s *ServerState) handleGameStart(table *game.Table, startingPlayer *game.Pl
 		return
 	}
 
+	table.WinnerID = ""
+	table.PendingClick = nil
+	if table.ClickTimer != nil {
+		table.ClickTimer.Stop()
+		table.ClickTimer = nil
+	}
+
+	for _, p := range table.Players {
+		p.TimeTaken = ""
+		p.InPenalty = false
+	}
+
 	deck := game.GenerateStandardDeck()
 	deck.Shuffle()
 
