@@ -25,3 +25,4 @@ go.work.sum
 # Compiled artifacts
 web/app.wasm
 bin/
+server.log
